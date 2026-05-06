@@ -47,6 +47,7 @@ public class HoverCushion : MonoBehaviour
 
     private void FixedUpdate()
     {
+        ResolveWaterSystemIfNeeded();
         if (_rb == null || _waterSystem == null) return;
         if (_hoverPoints == null) return;
         
@@ -130,5 +131,12 @@ public class HoverCushion : MonoBehaviour
                 if(p != null) Gizmos.DrawSphere(p.position, 0.1f);
             }
         }
+    }
+
+    private void ResolveWaterSystemIfNeeded()
+    {
+        if (_waterSystem != null) return;
+
+        _waterSystem = FindFirstObjectByType<WaterPhysicsSystem>();
     }
 }

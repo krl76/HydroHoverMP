@@ -43,10 +43,15 @@ namespace Physics.Hover
 
         private void FixedUpdate()
         {
-            if (_wind == null) return;
+            ResolveScenePhysicsIfNeeded();
+            if (_rb == null || _cushion == null) return;
 
-            ApplyAirDrag();
-            ApplyWaterDrag();
+            if (_wind != null)
+                ApplyAirDrag();
+
+            if (_waterSystem != null)
+                ApplyWaterDrag();
+
             ApplySteering();
             ApplySideDrag();
         }
@@ -69,8 +74,12 @@ namespace Physics.Hover
 
         private void ApplyWaterDrag()
         {
+            if (_cushion.HoverPoints == null) return;
+
             foreach (var point in _cushion.HoverPoints)
             {
+                if (point == null) continue;
+
                 float waterH = _waterSystem.GetWaterHeightAt(point.position);
                 
                 if (point.position.y < waterH)
@@ -111,6 +120,12 @@ namespace Physics.Hover
             float dragForce = -sideSpeed * _sideDrag * _rb.mass; // F = -kv
 
             _rb.AddRelativeForce(Vector3.right * dragForce, ForceMode.Force);
+        }
+
+        private void ResolveScenePhysicsIfNeeded()
+        {
+            _wind ??= FindFirstObjectByType<WindSystem>();
+            _waterSystem ??= FindFirstObjectByType<WaterPhysicsSystem>();
         }
     }
 }

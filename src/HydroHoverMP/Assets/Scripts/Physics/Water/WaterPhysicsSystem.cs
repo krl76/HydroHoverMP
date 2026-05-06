@@ -5,7 +5,7 @@ namespace Physics.Water
 {
     public class WaterPhysicsSystem : MonoBehaviour
     {
-        private WaveSettings _settings;
+        [SerializeField] private WaveSettings _settings;
     
         private static readonly int Wave1Params = Shader.PropertyToID("_Wave1Params"); // x=len, y=amp, z=speed
         private static readonly int Wave1Dir = Shader.PropertyToID("_Wave1Dir");
@@ -44,12 +44,16 @@ namespace Physics.Water
     
         public float GetWaterHeightAt(Vector3 worldPos)
         {
+            float baseHeight = transform.position.y;
+            if (_settings == null)
+                return baseHeight;
+
             float time = Time.time;
         
             float finalAmp1 = _settings.Amplitude1 * _amplitudeMultiplier;
             float finalAmp2 = _settings.Amplitude2 * _amplitudeMultiplier;
         
-            float y = 0f;
+            float y = baseHeight;
             y += CalculateGerstnerWave(worldPos, _settings.Wavelength1, finalAmp1, _settings.Speed1, _settings.Direction1, time);
             y += CalculateGerstnerWave(worldPos, _settings.Wavelength2, finalAmp2, _settings.Speed2, _settings.Direction2, time);
         
