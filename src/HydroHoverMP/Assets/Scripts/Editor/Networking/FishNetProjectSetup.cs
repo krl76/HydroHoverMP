@@ -11,7 +11,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace Editor.Networking
+namespace HydroHoverMP.Editor.Networking
 {
     public static class FishNetProjectSetup
     {
