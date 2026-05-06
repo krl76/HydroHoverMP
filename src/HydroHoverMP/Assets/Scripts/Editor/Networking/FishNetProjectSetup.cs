@@ -110,6 +110,7 @@ namespace HydroHoverMP.Editor.Networking
             AddIfMissing<NetworkSessionController>(sessionObject);
             AddIfMissing<NetworkRaceManager>(sessionObject);
             AddIfMissing<NetworkLevelAdditiveLoader>(sessionObject);
+            AddIfMissing<NetworkGameplayStateBridge>(sessionObject);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);

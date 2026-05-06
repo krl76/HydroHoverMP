@@ -8,6 +8,15 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Bootstrap.unity
     guid: c77d5127dfb0b7f4c8a1569ba25e2654
+  - enabled: 1
+    path: Assets/Scenes/MainMenu.unity
+    guid: bbebd04adf2a1b644afd6b197fae1d01
+  - enabled: 1
+    path: Assets/Scenes/Gameplay.unity
+    guid: 9315577e9f346da468f1257ace3e84e3
+  - enabled: 1
+    path: Assets/Scenes/Level.unity
+    guid: 79ff0a0423baab942a22f76a840ff9dc
   m_configObjects:
     com.unity.addressableassets: {fileID: 11400000, guid: 71e21c8e8f99b1343877d2aa5e0aa016, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

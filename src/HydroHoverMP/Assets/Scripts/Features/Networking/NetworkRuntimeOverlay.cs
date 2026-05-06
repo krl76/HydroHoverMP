@@ -12,7 +12,7 @@ namespace Features.Networking
         private INetworkConnectionService _connectionService;
         private string _address = "localhost";
         private string _nickname = "Pilot";
-        private bool _visible = true;
+        private bool _visible;
         private Vector2 _scroll;
 
         private void Awake()
