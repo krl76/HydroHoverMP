@@ -1,6 +1,9 @@
 using System.Linq;
 using Infrastructure.Services.Network;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 using Zenject;
 
 namespace Features.Networking
@@ -22,8 +25,19 @@ namespace Features.Networking
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.F2))
+            if (IsTogglePressed())
                 _visible = !_visible;
+        }
+
+        private static bool IsTogglePressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            return Keyboard.current != null && Keyboard.current.f2Key.wasPressedThisFrame;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return Input.GetKeyDown(KeyCode.F2);
+#else
+            return false;
+#endif
         }
 
         private void OnGUI()

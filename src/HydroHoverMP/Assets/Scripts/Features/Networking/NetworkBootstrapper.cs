@@ -15,13 +15,6 @@ namespace Features.Networking
                 Object.DontDestroyOnLoad(managerObject);
             }
 
-            if (Object.FindFirstObjectByType<NetworkRuntimeOverlay>() == null)
-            {
-                GameObject overlayObject = new("Network Runtime Overlay");
-                overlayObject.AddComponent<NetworkRuntimeOverlay>();
-                Object.DontDestroyOnLoad(overlayObject);
-            }
-
             return networkManager;
         }
     }

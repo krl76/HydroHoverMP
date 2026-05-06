@@ -92,8 +92,6 @@ namespace HydroHoverMP.Editor.Networking
                 .GetComponent<NetworkObject>();
             spawner.SetPlayerPrefab(playerPrefab);
 
-            AddIfMissing<NetworkRuntimeOverlay>(networkObject);
-
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
         }

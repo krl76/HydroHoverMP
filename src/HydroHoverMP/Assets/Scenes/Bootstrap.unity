@@ -238,7 +238,6 @@ GameObject:
   - component: {fileID: 2093843041}
   - component: {fileID: 2093843040}
   - component: {fileID: 2093843039}
-  - component: {fileID: 2093843038}
   m_Layer: 0
   m_Name: FishNet NetworkManager
   m_TagString: Untagged
@@ -246,18 +245,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &2093843038
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2093843037}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8ffd8079d80bc8a49ad9db5016693d63, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Features.Networking.NetworkRuntimeOverlay
 --- !u!114 &2093843039
 MonoBehaviour:
   m_ObjectHideFlags: 0

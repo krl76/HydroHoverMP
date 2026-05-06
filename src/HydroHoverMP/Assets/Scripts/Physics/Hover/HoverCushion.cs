@@ -39,7 +39,7 @@ public class HoverCushion : MonoBehaviour
     {
         _rb = GetComponent<Rigidbody>();
         
-        if (_centerOfMass != null)
+        if (_rb != null && _centerOfMass != null)
         {
             _rb.centerOfMass = _centerOfMass.localPosition;
         }
@@ -47,6 +47,7 @@ public class HoverCushion : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (_rb == null || _waterSystem == null) return;
         if (_hoverPoints == null) return;
         
         float maxImpact = 0f;
@@ -70,7 +71,7 @@ public class HoverCushion : MonoBehaviour
 
     private void ApplyForceAtPoint(Transform point)
     {
-        if (_waterSystem == null) return;
+        if (_rb == null || _waterSystem == null || point == null) return;
         
         float waterHeight = _waterSystem.GetWaterHeightAt(point.position);
         
@@ -99,6 +100,8 @@ public class HoverCushion : MonoBehaviour
     
     private float CalculateImpact(Transform point)
     {
+        if (_rb == null || _waterSystem == null || point == null) return 0f;
+
         float waterHeight = _waterSystem.GetWaterHeightAt(point.position);
         if (point.position.y < waterHeight)
         {

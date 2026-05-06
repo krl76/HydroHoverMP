@@ -32,6 +32,8 @@ namespace Features.Camera
 
         private void Update()
         {
+            if (_playerService == null || _vcam == null) return;
+
             if (_playerService.IsPlayerCreated && _targetRb == null)
             {
                 _targetRb = _playerService.Transform.gameObject.GetComponent<Rigidbody>();
