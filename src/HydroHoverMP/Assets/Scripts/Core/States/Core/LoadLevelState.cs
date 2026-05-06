@@ -46,7 +46,7 @@ namespace Core.States.Core
             Vector3 pos = startPoint ? startPoint.transform.position : Vector3.zero;
             Quaternion rot = startPoint ? startPoint.transform.rotation : Quaternion.identity;
             
-            var sceneContext = Object.FindObjectOfType<SceneContext>();
+            var sceneContext = Object.FindFirstObjectByType<SceneContext>();
             
             var player = await _gameObjectFactory.InstantiateAsync("Player", pos, rot, null, 
                 sceneContext.Container);
