@@ -9,6 +9,7 @@ namespace Infrastructure.Services.Input
         Vector2 MoveInput { get; }
         float LiftInput { get; }
         bool HandbrakeInput { get; }
+        bool HydroPulsePressed { get; }
 
         float SensitivityMultiplier { get; set; }
         

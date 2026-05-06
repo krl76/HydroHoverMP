@@ -2,7 +2,9 @@
 using Core.States.Core;
 using Data;
 using Infrastructure.Services.Window;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 using UnityEngine.UI;
 using Zenject;

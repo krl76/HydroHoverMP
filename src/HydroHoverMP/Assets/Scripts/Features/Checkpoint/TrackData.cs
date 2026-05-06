@@ -1,4 +1,5 @@
-﻿using System.Linq;
+using System.Linq;
+using Features.Networking;
 using Features.Trigger;
 using Infrastructure.Services.RaceManager;
 using UnityEngine;
@@ -19,10 +20,12 @@ namespace Features.Checkpoint
         private void Start()
         {
             var checkpoints = GetComponentsInChildren<CheckpointTrigger>().ToList();
-            
+
             _raceManagerService.RegisterTrack(checkpoints);
-            
-            _raceManagerService.StartRace(); 
+            NetworkRaceManager.Instance?.RegisterTrack(checkpoints.Count);
+
+            if (NetworkSessionController.Instance == null)
+                _raceManagerService.StartRace();
         }
     }
 }

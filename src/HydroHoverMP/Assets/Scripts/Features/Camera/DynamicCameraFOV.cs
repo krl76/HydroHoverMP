@@ -38,6 +38,8 @@ namespace Features.Camera
                 return;
             }
 
+            if (_targetRb == null) return;
+
             float currentSpeed = _targetRb.linearVelocity.magnitude;
             float t = Mathf.Clamp01(currentSpeed / _maxSpeedForEffect);
         

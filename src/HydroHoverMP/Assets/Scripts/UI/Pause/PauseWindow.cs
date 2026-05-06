@@ -2,6 +2,7 @@
 using Core.States.Core;
 using Core.States.MainMenu;
 using Data;
+using FishNet;
 using Infrastructure.Services.Window;
 using UnityEngine;
 using UnityEngine.UI;
@@ -29,7 +30,8 @@ namespace UI.Pause
 
         private void OnEnable()
         {
-            Time.timeScale = 0f;
+            if (!InstanceFinder.IsClientStarted && !InstanceFinder.IsServerStarted)
+                Time.timeScale = 0f;
         }
 
         private void Start()

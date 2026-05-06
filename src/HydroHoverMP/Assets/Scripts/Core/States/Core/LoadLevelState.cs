@@ -1,6 +1,7 @@
 ﻿using Core.States.Base;
 using Core.States.Game;
 using Data;
+using FishNet;
 using Infrastructure.Factories;
 using Infrastructure.Services.Player;
 using Infrastructure.Services.SceneManagement;
@@ -34,6 +35,13 @@ namespace Core.States.Core
 
         private async void OnLoaded()
         {
+            if (InstanceFinder.IsClientStarted || InstanceFinder.IsServerStarted)
+            {
+                _sceneLoader.LoadSceneAdditive(ScenesPaths.LEVEL);
+                _stateMachine.Enter<GameLoopState>();
+                return;
+            }
+
             var startPoint = GameObject.FindWithTag("Spawn"); 
             Vector3 pos = startPoint ? startPoint.transform.position : Vector3.zero;
             Quaternion rot = startPoint ? startPoint.transform.rotation : Quaternion.identity;

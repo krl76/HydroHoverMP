@@ -4,6 +4,7 @@ using Infrastructure.Providers.Assets;
 using Infrastructure.Services.Audio;
 using Infrastructure.Services.Input;
 using Infrastructure.Services.Leaderboard;
+using Infrastructure.Services.Network;
 using Infrastructure.Services.Player;
 using Infrastructure.Services.RaceManager;
 using Infrastructure.Services.SceneManagement;
@@ -45,6 +46,7 @@ namespace Infrastructure.Installers
             Container.Bind<ILeaderboardService>().To<LeaderboardService>().AsSingle();
             Container.Bind<IAudioService>().To<AudioService>().AsSingle();
             Container.Bind<ISettingsService>().To<SettingsService>().AsSingle();
+            Container.BindInterfacesTo<NetworkConnectionService>().AsSingle();
         }
     }
 }

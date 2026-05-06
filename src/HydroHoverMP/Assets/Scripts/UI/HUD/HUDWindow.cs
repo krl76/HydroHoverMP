@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections;
+using Features.Networking;
 using Infrastructure.Services.Player;
 using Infrastructure.Services.RaceManager;
 using Physics.Hover;
@@ -32,6 +33,7 @@ namespace UI.HUD
         private IPlayerService _playerService;
         private IRaceManagerService _raceManagerService;
         private HoverController _hoverController;
+        private NetworkPlayerData _networkPlayerData;
         
         private int _lastSpeed = -1;
         private int _lastSeconds = -1;
@@ -69,7 +71,7 @@ namespace UI.HUD
             }
 
             UpdatePhysicsUI();
-            UpdateRaceInfoUI();
+            UpdateNetworkOrRaceInfoUI();
         }
 
         private void UpdatePhysicsUI()
@@ -112,6 +114,26 @@ namespace UI.HUD
                 _checkpointText.text = $"{currentCp} / {_raceManagerService.TotalCheckpoints}";
                 _lastCheckpointIndex = currentCp;
             }
+        }
+
+
+        private void UpdateNetworkOrRaceInfoUI()
+        {
+            if (_networkPlayerData == null && _playerService.IsLocalPlayerCreated)
+                _networkPlayerData = _playerService.LocalPlayerTransform.GetComponent<NetworkPlayerData>();
+
+            if (_networkPlayerData == null)
+            {
+                UpdateRaceInfoUI();
+                return;
+            }
+
+            _timerText.text = NetworkSessionController.Instance != null
+                ? NetworkSessionController.Instance.Phase.Value.ToString()
+                : "Network";
+
+            _checkpointText.text =
+                $"CP {_networkPlayerData.CheckpointIndex.Value} / HP {_networkPlayerData.HP.Value} / Score {_networkPlayerData.Score.Value}";
         }
 
         private IEnumerator UpdateGameMetrics()

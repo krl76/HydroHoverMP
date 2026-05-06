@@ -26,6 +26,7 @@ namespace Physics.Hover
         public HoverEngine LiftEngine => _liftEngine;
         public HoverEngine ThrustEngine => _thrustEngine;
         public Rigidbody Rb => _rb;
+        public bool InputEnabled { get; private set; } = true;
 
         private Rigidbody _rb;
         private IInputService _input;
@@ -34,6 +35,22 @@ namespace Physics.Hover
         public void Construct(IInputService input)
         {
             _input = input;
+        }
+
+        public void SetInputService(IInputService input)
+        {
+            _input = input;
+        }
+
+        public void SetInputEnabled(bool enabled)
+        {
+            InputEnabled = enabled;
+            if (!enabled)
+            {
+                if (_liftEngine) _liftEngine.SetThrottle(0f);
+                if (_thrustEngine) _thrustEngine.SetThrottle(0f);
+                if (_aerodynamics) _aerodynamics.SteerInput = 0f;
+            }
         }
 
         private void Awake()
@@ -49,6 +66,8 @@ namespace Physics.Hover
 
         private void Update()
         {
+            if (!InputEnabled) return;
+            ResolveInputIfNeeded();
             if (_input == null) return;
             
             float liftInput = _input.LiftInput;
@@ -63,6 +82,8 @@ namespace Physics.Hover
 
         private void FixedUpdate()
         {
+            if (!InputEnabled) return;
+
             float dt = Time.fixedDeltaTime;
             
             if (_liftEngine) _liftEngine.CalculatePhysics(dt);
@@ -101,6 +122,20 @@ namespace Physics.Hover
                 Vector3 force = transform.forward * (_thrustEngine.CurrentTorque * _forwardForceMultiplier);
                 _rb.AddForceAtPosition(force, _thrustPoint.position);
             }
+        }
+
+        public void ApplyHydroPulse(float impulseForce)
+        {
+            if (_rb == null) return;
+
+            _rb.AddForce(transform.forward * impulseForce, ForceMode.Impulse);
+        }
+
+        private void ResolveInputIfNeeded()
+        {
+            if (_input != null || !Zenject.ProjectContext.HasInstance) return;
+
+            _input = Zenject.ProjectContext.Instance.Container.TryResolve<IInputService>();
         }
     }
 }

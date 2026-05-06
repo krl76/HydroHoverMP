@@ -14,6 +14,7 @@ namespace Infrastructure.Services.Input
         public Vector2 MoveInput => _controls.Player.Move.ReadValue<Vector2>() * SensitivityMultiplier;
         public float LiftInput => _controls.Player.Lift.ReadValue<float>();
         public bool HandbrakeInput => _controls.Player.Handbrake.IsPressed();
+        public bool HydroPulsePressed => Keyboard.current != null && Keyboard.current.leftShiftKey.wasPressedThisFrame;
 
         public float SensitivityMultiplier { get; set; } = 1.0f;
 
