@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e591bd0fa4b4f7fab0156250b3257f9, type: 3}
+  m_Name: GlobalWaves
+  m_EditorClassIdentifier: Assembly-CSharp::Physics.Water.WaveSettings
+  Wavelength1: 20
+  Amplitude1: 1.5
+  Speed1: 1
+  Direction1: {x: 1, y: 0.5}
+  Wavelength2: 10
+  Amplitude2: 0.5
+  Speed2: 1.2
+  Direction2: {x: 0.5, y: 1}
