@@ -5,7 +5,9 @@ using FishNet.Component.Scenes;
 using FishNet.Component.Spawning;
 using FishNet.Component.Transforming;
 using FishNet.Managing;
+using FishNet.Managing.Transporting;
 using FishNet.Object;
+using FishNet.Transporting.Tugboat;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -81,9 +83,12 @@ namespace HydroHoverMP.Editor.Networking
                 networkObject = new GameObject("FishNet NetworkManager");
 
             AddIfMissing<NetworkManager>(networkObject);
+            TransportManager transportManager = AddIfMissing<TransportManager>(networkObject);
+            Tugboat tugboat = AddIfMissing<Tugboat>(networkObject);
+            transportManager.Transport = tugboat;
 
             DefaultScene defaultScene = AddIfMissing<DefaultScene>(networkObject);
-            defaultScene.SetOfflineScene("MainMenu");
+            defaultScene.SetOfflineScene("Bootstrap");
             defaultScene.SetOnlineScene("Gameplay");
 
             PlayerSpawner spawner = AddIfMissing<PlayerSpawner>(networkObject);
