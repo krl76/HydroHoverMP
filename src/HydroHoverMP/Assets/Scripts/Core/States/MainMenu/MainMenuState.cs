@@ -1,4 +1,5 @@
 ﻿using Core.States.Base;
+using Cysharp.Threading.Tasks;
 using Data;
 using Infrastructure.Services.SceneManagement;
 using Infrastructure.Services.Window;
@@ -21,9 +22,9 @@ namespace Core.States.MainMenu
             _sceneLoader.LoadScene(ScenesPaths.MAIN_MENU, OnLoaded);
         }
 
-        private void OnLoaded()
+        private async void OnLoaded()
         {
-            _windowService.Open(WindowID.MainMenu);
+            await _windowService.Open(WindowID.MainMenu);
         }
 
         public void Exit()

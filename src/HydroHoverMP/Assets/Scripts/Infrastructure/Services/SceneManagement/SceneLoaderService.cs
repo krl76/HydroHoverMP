@@ -24,6 +24,7 @@ namespace Infrastructure.Services.SceneManagement
         private async UniTask LoadSceneAsync(string sceneAddress, Action onLoaded)
         {
             var loadingWindow = await _windowService.OpenAndGet<LoadingScreenWindow>(WindowID.Loading);
+            UnityEngine.Object.DontDestroyOnLoad(loadingWindow.transform.root.gameObject);
             loadingWindow.UpdateProgress(0);
             
             var loadOp = Addressables.LoadSceneAsync(sceneAddress, LoadSceneMode.Single);

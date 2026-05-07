@@ -30,6 +30,7 @@ namespace UI.MainMenu
         [Header("Inline connection form")]
         [SerializeField] private TMP_InputField _nicknameInput;
         [SerializeField] private TMP_InputField _addressInput;
+        [SerializeField] private TMP_InputField _portInput;
         [SerializeField] private TextMeshProUGUI _statusText;
         [SerializeField] private TextMeshProUGUI _modeTitleText;
 
@@ -42,6 +43,7 @@ namespace UI.MainMenu
         private Vector2 _settingsStartPosition;
         private Vector2 _exitStartPosition;
         private float _nextRefreshTime;
+        private string _lastConnectionFailure;
 
         [Inject]
         public void Construct(IWindowService windowService, INetworkConnectionService connectionService)
@@ -175,24 +177,31 @@ namespace UI.MainMenu
 
             if (_addressInput != null)
                 _addressInput.text = NetworkPlayerPreferences.GetAddress();
+
+            if (_portInput != null)
+                _portInput.text = NetworkPlayerPreferences.GetPort().ToString();
         }
 
         private void StartHostFromMenu()
         {
             if (!TryPrepareConnection()) return;
+            if (!TryGetPortFromInput(out ushort port)) return;
 
-            SetStatus("Starting Host...", false);
-            if (!_connectionService.StartHost(DefaultPort))
+            _lastConnectionFailure = null;
+            SetStatus($"Starting Host on port {port}...", false);
+            if (!_connectionService.StartHost(port))
                 RefreshConnectionUi();
         }
 
         private void StartClientFromMenu()
         {
             if (!TryPrepareConnection()) return;
+            if (!TryGetPortFromInput(out ushort port)) return;
 
             string address = _addressInput != null ? _addressInput.text : NetworkPlayerPreferences.GetAddress();
-            SetStatus($"Connecting to {NormalizeAddress(address)}:{DefaultPort}...", false);
-            if (!_connectionService.StartClient(address, DefaultPort))
+            _lastConnectionFailure = null;
+            SetStatus($"Connecting to {NormalizeAddress(address)}:{port}...", false);
+            if (!_connectionService.StartClient(address, port))
                 RefreshConnectionUi();
         }
 
@@ -215,6 +224,19 @@ namespace UI.MainMenu
 
             if (_addressInput != null)
                 NetworkPlayerPreferences.SetAddress(_addressInput.text);
+
+            if (TryParsePort(_portInput != null ? _portInput.text : null, out ushort port, out _))
+                NetworkPlayerPreferences.SetPort(port);
+        }
+
+        private bool TryGetPortFromInput(out ushort port)
+        {
+            string portText = _portInput != null ? _portInput.text : NetworkPlayerPreferences.GetPort().ToString();
+            if (TryParsePort(portText, out port, out string error))
+                return true;
+
+            SetStatus(error, true);
+            return false;
         }
 
         private void OnConnectionStatusChanged(NetworkConnectionStatus status) => RefreshConnectionUi();
@@ -222,7 +244,7 @@ namespace UI.MainMenu
 
         private void OnConnectionFailed(string message)
         {
-            SetStatus(message, true);
+            _lastConnectionFailure = message;
             RefreshConnectionUi();
         }
 
@@ -250,16 +272,21 @@ namespace UI.MainMenu
                 _leaderboardButton.interactable = true;
 
             string address = _addressInput != null ? NormalizeAddress(_addressInput.text) : NetworkPlayerPreferences.GetAddress();
+            string port = _portInput != null && !string.IsNullOrWhiteSpace(_portInput.text)
+                ? _portInput.text.Trim()
+                : NetworkPlayerPreferences.GetPort().ToString();
             string statusLine = status switch
             {
                 NetworkConnectionStatus.Offline => _mode == ConnectionMode.Host
-                    ? "Enter nickname, then Start Host."
-                    : "Enter nickname/address, then Connect.",
-                NetworkConnectionStatus.StartingHost => "Starting Host... loading shared Gameplay scene.",
-                NetworkConnectionStatus.StartingClient => $"Connecting to {address}:{DefaultPort}...",
+                    ? "Enter nickname/port, then Start Host."
+                    : "Enter nickname/address/port, then Connect.",
+                NetworkConnectionStatus.StartingHost => $"Starting Host on port {port}... loading shared Gameplay scene.",
+                NetworkConnectionStatus.StartingClient => $"Connecting to {address}:{port}...",
                 NetworkConnectionStatus.HostStarted => $"Host started. Clients: {_connectionService.ConnectedClientCount}.",
                 NetworkConnectionStatus.ClientStarted => "Client connected. Waiting for server scene/lobby.",
-                NetworkConnectionStatus.Failed => "Connection failed. Check address, port and FishNet setup.",
+                NetworkConnectionStatus.Failed => string.IsNullOrWhiteSpace(_lastConnectionFailure)
+                    ? "Connection failed. Check address, port and FishNet setup."
+                    : _lastConnectionFailure,
                 _ => status.ToString()
             };
 
@@ -277,6 +304,7 @@ namespace UI.MainMenu
             _modeTitleText ??= CreateText("ConnectionModeTitle", "HOST SESSION", new Vector2(0f, 176f), new Vector2(420f, 48f), 28, TextAlignmentOptions.Center);
             _nicknameInput ??= CreateInput("NicknameInput", "Pilot", new Vector2(0f, 96f), new Vector2(330f, 48f));
             _addressInput ??= CreateInput("AddressInput", "localhost", new Vector2(0f, 30f), new Vector2(330f, 48f));
+            _portInput ??= CreateInput("PortInput", DefaultPort.ToString(), new Vector2(0f, -36f), new Vector2(330f, 48f));
             _statusText ??= CreateText("ConnectionStatus", string.Empty, new Vector2(0f, -250f), new Vector2(560f, 72f), 20, TextAlignmentOptions.Center);
         }
 
@@ -368,6 +396,7 @@ namespace UI.MainMenu
             if (_modeTitleText != null) _modeTitleText.gameObject.SetActive(active);
             if (_nicknameInput != null) _nicknameInput.gameObject.SetActive(active);
             if (_addressInput != null) _addressInput.gameObject.SetActive(active && _mode == ConnectionMode.Client);
+            if (_portInput != null) _portInput.gameObject.SetActive(active);
             if (_statusText != null) _statusText.gameObject.SetActive(active);
         }
 
@@ -443,6 +472,33 @@ namespace UI.MainMenu
         private static string NormalizeAddress(string address)
         {
             return string.IsNullOrWhiteSpace(address) ? "localhost" : address.Trim();
+        }
+
+        private static bool TryParsePort(string text, out ushort port, out string error)
+        {
+            port = 0;
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                error = $"Port is required. Enter a number from 1 to {ushort.MaxValue}.";
+                return false;
+            }
+
+            if (!int.TryParse(text.Trim(), out int parsed))
+            {
+                error = $"Port '{text.Trim()}' is not numeric. Enter a number from 1 to {ushort.MaxValue}.";
+                return false;
+            }
+
+            if (parsed <= 0 || parsed > ushort.MaxValue)
+            {
+                error = $"Port {parsed} is out of range. Enter a number from 1 to {ushort.MaxValue}.";
+                return false;
+            }
+
+            port = (ushort)parsed;
+            return true;
         }
     }
 }
