@@ -6,6 +6,8 @@ namespace Infrastructure.Services.Network
     {
         private const string NicknameKey = "HydroHoverMP.Network.Nickname";
         private const string AddressKey = "HydroHoverMP.Network.Address";
+        private const string PortKey = "HydroHoverMP.Network.Port";
+        private const ushort DefaultPort = 7770;
         private const int MaxNicknameLength = 18;
 
         public static string GetNickname()
@@ -28,6 +30,20 @@ namespace Infrastructure.Services.Network
         public static void SetAddress(string address)
         {
             PlayerPrefs.SetString(AddressKey, string.IsNullOrWhiteSpace(address) ? "localhost" : address.Trim());
+            PlayerPrefs.Save();
+        }
+
+        public static ushort GetPort()
+        {
+            int port = PlayerPrefs.GetInt(PortKey, DefaultPort);
+            return port is > 0 and <= ushort.MaxValue ? (ushort)port : DefaultPort;
+        }
+
+        public static void SetPort(ushort port)
+        {
+            if (port == 0) return;
+
+            PlayerPrefs.SetInt(PortKey, port);
             PlayerPrefs.Save();
         }
 

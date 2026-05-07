@@ -14,9 +14,17 @@ namespace Features.Networking
 
         private INetworkConnectionService _connectionService;
         private string _address = "localhost";
+        private string _port = DefaultPort.ToString();
         private string _nickname = "Pilot";
+        private string _lastConnectionFailure;
+        private bool _subscribedToConnectionService;
         private bool _visible;
         private Vector2 _scroll;
+
+        private void OnDestroy()
+        {
+            UnsubscribeConnectionService();
+        }
 
         private void Awake()
         {
@@ -74,6 +82,8 @@ namespace Features.Networking
             _connectionService.RefreshStatus();
             GUILayout.Label($"Status: {_connectionService.Status}");
             GUILayout.Label($"Server clients: {_connectionService.ConnectedClientCount}");
+            if (!string.IsNullOrWhiteSpace(_lastConnectionFailure))
+                GUILayout.Label($"Last failure: {_lastConnectionFailure}");
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("Address", GUILayout.Width(70));
@@ -81,12 +91,29 @@ namespace Features.Networking
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
+            GUILayout.Label("Port", GUILayout.Width(70));
+            _port = GUILayout.TextField(_port);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
             if (GUILayout.Button("Host"))
-                _connectionService.StartHost(DefaultPort);
+            {
+                _lastConnectionFailure = null;
+                if (TryGetPort(out ushort port))
+                    _connectionService.StartHost(port);
+            }
             if (GUILayout.Button("Client"))
-                _connectionService.StartClient(_address, DefaultPort);
+            {
+                _lastConnectionFailure = null;
+                if (TryGetPort(out ushort port))
+                    _connectionService.StartClient(_address, port);
+            }
             if (GUILayout.Button("Server"))
-                _connectionService.StartServer(DefaultPort);
+            {
+                _lastConnectionFailure = null;
+                if (TryGetPort(out ushort port))
+                    _connectionService.StartServer(port);
+            }
             GUILayout.EndHorizontal();
 
             if (GUILayout.Button("Stop connection"))
@@ -167,6 +194,64 @@ namespace Features.Networking
             if (_connectionService != null || !ProjectContext.HasInstance) return;
 
             _connectionService = ProjectContext.Instance.Container.TryResolve<INetworkConnectionService>();
+            SubscribeConnectionService();
+        }
+
+        private bool TryGetPort(out ushort port)
+        {
+            if (TryParsePort(_port, out port, out string error))
+                return true;
+
+            _lastConnectionFailure = error;
+            return false;
+        }
+
+        private void SubscribeConnectionService()
+        {
+            if (_connectionService == null || _subscribedToConnectionService) return;
+
+            _connectionService.OnConnectionFailed += OnConnectionFailed;
+            _subscribedToConnectionService = true;
+        }
+
+        private void UnsubscribeConnectionService()
+        {
+            if (_connectionService == null || !_subscribedToConnectionService) return;
+
+            _connectionService.OnConnectionFailed -= OnConnectionFailed;
+            _subscribedToConnectionService = false;
+        }
+
+        private void OnConnectionFailed(string message)
+        {
+            _lastConnectionFailure = message;
+        }
+
+        private static bool TryParsePort(string text, out ushort port, out string error)
+        {
+            port = 0;
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                error = $"Port is required. Enter a number from 1 to {ushort.MaxValue}.";
+                return false;
+            }
+
+            if (!int.TryParse(text.Trim(), out int parsed))
+            {
+                error = $"Port '{text.Trim()}' is not numeric. Enter a number from 1 to {ushort.MaxValue}.";
+                return false;
+            }
+
+            if (parsed <= 0 || parsed > ushort.MaxValue)
+            {
+                error = $"Port {parsed} is out of range. Enter a number from 1 to {ushort.MaxValue}.";
+                return false;
+            }
+
+            port = (ushort)parsed;
+            return true;
         }
     }
 }
