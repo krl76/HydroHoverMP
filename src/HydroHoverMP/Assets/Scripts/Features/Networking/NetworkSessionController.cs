@@ -127,12 +127,6 @@ namespace Features.Networking
             ReadyPlayers.Value = _players.Values.Count(p => p.IsReady.Value);
             ConnectedPlayers.Value = _players.Count;
 
-            if (Phase.Value == SessionPhase.Lobby &&
-                CanStartCountdown())
-            {
-                ServerStartCountdown(false);
-            }
-
             if (Phase.Value == SessionPhase.Countdown && !CanStartCountdown())
                 ServerCancelCountdown();
         }
