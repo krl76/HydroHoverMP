@@ -169,6 +169,31 @@ namespace Features.Networking
             NetworkRaceManager.Instance?.TryPassCheckpoint(this, checkpointIndex);
         }
 
+        public void ServerTeleportToSpawn(Vector3 position, Quaternion rotation)
+        {
+            if (!IsServerInitialized) return;
+
+            ApplySpawnTransform(position, rotation);
+            ApplySpawnTransformObserversRpc(position, rotation);
+        }
+
+        [ObserversRpc(RunLocally = true)]
+        private void ApplySpawnTransformObserversRpc(Vector3 position, Quaternion rotation)
+        {
+            ApplySpawnTransform(position, rotation);
+        }
+
+        private void ApplySpawnTransform(Vector3 position, Quaternion rotation)
+        {
+            transform.SetPositionAndRotation(position, rotation);
+
+            if (TryGetComponent(out Rigidbody body))
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+        }
+
         private void Subscribe()
         {
             Nickname.OnChange += OnStringChanged;

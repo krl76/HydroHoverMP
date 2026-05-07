@@ -23,6 +23,7 @@ namespace UI.HUD
         [SerializeField] private TextMeshProUGUI _timerText;
         [SerializeField] private TextMeshProUGUI _checkpointText;
         [SerializeField] private TextMeshProUGUI _fpsText;
+        [SerializeField] private TextMeshProUGUI _pingText;
 
         [Header("Speedometer")]
         [SerializeField] private RectTransform _speedNeedle;
@@ -34,6 +35,9 @@ namespace UI.HUD
         [Header("Bars")]
         [SerializeField] private Image _liftBar;
         [SerializeField] private Image _thrustBar;
+
+        [Header("Network")]
+        [SerializeField] private Button _hostStartButton;
 
         private IPlayerService _playerService;
         private IRaceManagerService _raceManagerService;
@@ -47,6 +51,7 @@ namespace UI.HUD
         private int _lastFps = -1;
         private int _lastObservedConnectedPlayers = -1;
         private float _nextNetworkUiRefreshTime;
+        private float _nextPingRefreshTime;
         private float _networkMessageVisibleUntil;
         private bool _networkMessageIsError;
         private bool _nicknameAppliedToSpawnedPlayer;
@@ -70,6 +75,7 @@ namespace UI.HUD
         {
             RemoveGeneratedNetworkPanelIfPresent();
             StartCoroutine(UpdateGameMetrics());
+            RefreshPingText(force: true);
 
             if (_raceManagerService != null)
             {
@@ -82,6 +88,12 @@ namespace UI.HUD
 
             if (_connectionService != null)
                 _connectionService.OnConnectionFailed += OnConnectionFailed;
+
+            if (_hostStartButton != null)
+            {
+                _hostStartButton.onClick.AddListener(OnHostStartClicked);
+                _hostStartButton.gameObject.SetActive(false);
+            }
         }
 
         private void Update()
@@ -100,6 +112,7 @@ namespace UI.HUD
 
             UpdateNetworkOrRaceInfoUI();
             ApplyLocalNetworkDefaults();
+            RefreshPingText();
         }
 
         private void UpdatePhysicsUI()
@@ -169,8 +182,11 @@ namespace UI.HUD
             {
                 UpdateRaceInfoUI();
                 RestoreNetworkTextColors();
+                RefreshHostStartButton(null, null);
                 return;
             }
+
+            RefreshHostStartButton(session, localPlayer);
 
             if (_timerText != null)
             {
@@ -197,7 +213,7 @@ namespace UI.HUD
             return session.Phase.Value switch
             {
                 SessionPhase.Lobby => $"Lobby - waiting ({session.ConnectedPlayers.Value})",
-                SessionPhase.Countdown => $"Start in {session.CountdownRemaining.Value:0.0}s",
+                SessionPhase.Countdown => $"Start in {Mathf.Max(1, Mathf.CeilToInt(session.CountdownRemaining.Value))}",
                 SessionPhase.Race => "Race live",
                 SessionPhase.Results => BuildResultsSummary(session),
                 SessionPhase.Disconnected => "Disconnected",
@@ -252,6 +268,23 @@ namespace UI.HUD
                 localPlayer.SetNickname(NetworkPlayerPreferences.GetNickname());
                 _nicknameAppliedToSpawnedPlayer = true;
             }
+        }
+
+        private void RefreshPingText(bool force = false)
+        {
+            if (_pingText == null)
+                return;
+
+            if (!force && Time.unscaledTime < _nextPingRefreshTime)
+                return;
+
+            _nextPingRefreshTime = Time.unscaledTime + 1f;
+            _pingText.text = BuildPingLabel();
+        }
+
+        private static string BuildPingLabel()
+        {
+            return "Ping -- ms";
         }
 
         private NetworkPlayerData GetLocalNetworkPlayer()
@@ -361,6 +394,37 @@ namespace UI.HUD
 
             if (_connectionService != null)
                 _connectionService.OnConnectionFailed -= OnConnectionFailed;
+
+            if (_hostStartButton != null)
+                _hostStartButton.onClick.RemoveListener(OnHostStartClicked);
+        }
+
+        private void RefreshHostStartButton(NetworkSessionController session, NetworkPlayerData localPlayer)
+        {
+            if (_hostStartButton == null)
+                return;
+
+            bool canShow = session != null &&
+                           localPlayer != null &&
+                           localPlayer.ClientId == 0 &&
+                           session.Phase.Value == SessionPhase.Lobby &&
+                           session.ConnectedPlayers.Value >= session.MinimumPlayers &&
+                           _connectionService != null &&
+                           (_connectionService.IsHost || _connectionService.IsServer);
+
+            if (_hostStartButton.gameObject.activeSelf != canShow)
+                _hostStartButton.gameObject.SetActive(canShow);
+
+            _hostStartButton.interactable = canShow;
+        }
+
+        private void OnHostStartClicked()
+        {
+            NetworkSessionController session = NetworkSessionController.Instance;
+            if (session == null)
+                return;
+
+            session.RequestForceStartServerRpc();
         }
 
         private static string FormatTime(float timeSeconds)

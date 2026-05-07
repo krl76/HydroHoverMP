@@ -62,6 +62,7 @@ namespace Features.Networking
         public readonly SyncList<NetworkRaceResult> Results = new();
 
         public IReadOnlyCollection<NetworkPlayerData> Players => _players.Values;
+        public int MinimumPlayers => _minimumPlayers;
 
         private void Awake()
         {
@@ -107,6 +108,10 @@ namespace Features.Networking
             _players[player.OwnerId] = player;
             UpsertResult(player, false);
             ConnectedPlayers.Value = _players.Count;
+            if (Phase.Value == SessionPhase.Lobby)
+                ServerPlacePlayersAtSpawnPoints();
+            else
+                ServerPlacePlayerAtSpawnPoint(player);
             RefreshReadyState();
         }
 
@@ -146,7 +151,7 @@ namespace Features.Networking
             if (!CanAcceptSessionAction(sender)) return;
             if (sender != null && sender.ClientId != 0) return;
 
-            if (Phase.Value == SessionPhase.Lobby && ConnectedPlayers.Value > 0)
+            if (Phase.Value == SessionPhase.Lobby && ConnectedPlayers.Value >= _minimumPlayers)
                 ServerStartCountdown(true);
         }
 
@@ -171,9 +176,45 @@ namespace Features.Networking
                 return;
             }
 
+            ServerPlacePlayersAtSpawnPoints();
             Phase.Value = SessionPhase.Countdown;
             _countdownEndsAt = Time.time + _countdownSeconds;
             CountdownRemaining.Value = _countdownSeconds;
+        }
+
+        private void ServerPlacePlayersAtSpawnPoints()
+        {
+            if (!IsServerInitialized) return;
+
+            NetworkSpawnPointRegistry registry = NetworkSpawnPointRegistry.Instance;
+            if (registry == null || registry.Count == 0) return;
+
+            int spawnIndex = 0;
+            foreach (NetworkPlayerData player in _players.Values.OrderBy(p => p.OwnerId))
+            {
+                if (player == null) continue;
+                if (registry.TryGetSpawn(spawnIndex, out Vector3 position, out Quaternion rotation))
+                    player.ServerTeleportToSpawn(position, rotation);
+
+                spawnIndex++;
+            }
+        }
+
+        private void ServerPlacePlayerAtSpawnPoint(NetworkPlayerData player)
+        {
+            if (!IsServerInitialized || player == null) return;
+
+            NetworkSpawnPointRegistry registry = NetworkSpawnPointRegistry.Instance;
+            if (registry == null || registry.Count == 0) return;
+
+            int spawnIndex = _players.Values
+                .Where(registeredPlayer => registeredPlayer != null)
+                .OrderBy(registeredPlayer => registeredPlayer.OwnerId)
+                .TakeWhile(registeredPlayer => registeredPlayer != player)
+                .Count();
+
+            if (registry.TryGetSpawn(spawnIndex, out Vector3 position, out Quaternion rotation))
+                player.ServerTeleportToSpawn(position, rotation);
         }
 
         private void ServerStartRace()
