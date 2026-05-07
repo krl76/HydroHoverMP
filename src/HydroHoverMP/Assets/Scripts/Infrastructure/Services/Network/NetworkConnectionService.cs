@@ -11,6 +11,11 @@ namespace Infrastructure.Services.Network
     public sealed class NetworkConnectionService : INetworkConnectionService, IInitializable, IDisposable
     {
         private const string LocalhostAddress = "localhost";
+        private const ushort DefaultPort = 7770;
+        private const string DedicatedServerArg = "-dedicatedServer";
+        private const string ServerOnlyArg = "-serverOnly";
+        private const string PortArg = "-port";
+        private const string ServerPortArg = "-serverPort";
 
         private NetworkManager _networkManager;
         private bool _subscribed;
@@ -34,6 +39,7 @@ namespace Infrastructure.Services.Network
         public void Initialize()
         {
             TryBindNetworkManager();
+            TryStartServerFromCommandLine();
         }
 
         public void Dispose()
@@ -109,6 +115,7 @@ namespace Infrastructure.Services.Network
                 return false;
             }
 
+            Debug.Log($"[NetworkConnectionService] Server-only start requested on port {port}. Connected clients: {ConnectedClientCount}.");
             return true;
         }
 
@@ -256,6 +263,121 @@ namespace Infrastructure.Services.Network
             return false;
         }
 
+        private void TryStartServerFromCommandLine()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            if (!TryGetCommandLineServerPort(args, out ushort port, out string error))
+            {
+                if (!string.IsNullOrWhiteSpace(error))
+                    Debug.LogError($"[NetworkConnectionService] {error}");
+                return;
+            }
+
+            Debug.Log($"[NetworkConnectionService] Command-line dedicated server start requested on port {port}.");
+            StartServer(port);
+        }
+
+        private static bool TryGetCommandLineServerPort(string[] args, out ushort port, out string error)
+        {
+            port = DefaultPort;
+            error = null;
+            if (args == null || args.Length == 0) return false;
+
+            bool serverRequested = false;
+            bool invalidPortFlag = false;
+            string invalidPortError = null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                string arg = args[i];
+                if (string.IsNullOrWhiteSpace(arg)) continue;
+
+                if (IsDedicatedServerArg(arg))
+                {
+                    serverRequested = true;
+                    continue;
+                }
+
+                if (!TryReadPortArg(args, i, arg, out ushort parsedPort, out bool consumedNext, out string portError))
+                {
+                    if (!string.IsNullOrWhiteSpace(portError))
+                    {
+                        invalidPortFlag = true;
+                        invalidPortError ??= portError;
+                    }
+
+                    continue;
+                }
+
+                port = parsedPort;
+                if (consumedNext) i++;
+            }
+
+            if (!serverRequested) return false;
+            if (!invalidPortFlag) return true;
+
+            error = invalidPortError ?? $"Dedicated server command-line port is invalid. Use {PortArg} {DefaultPort} or {ServerPortArg} {DefaultPort}.";
+            return false;
+        }
+
+        private static bool IsDedicatedServerArg(string arg)
+        {
+            return string.Equals(arg, DedicatedServerArg, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, ServerOnlyArg, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryReadPortArg(string[] args, int index, string arg, out ushort port, out bool consumedNext, out string error)
+        {
+            port = DefaultPort;
+            consumedNext = false;
+            error = null;
+
+            if (TryReadInlinePort(arg, PortArg, out port, out error) || TryReadInlinePort(arg, ServerPortArg, out port, out error))
+                return string.IsNullOrWhiteSpace(error);
+
+            if (!string.Equals(arg, PortArg, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(arg, ServerPortArg, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            int valueIndex = index + 1;
+            if (valueIndex >= args.Length)
+            {
+                error = $"Dedicated server command-line port flag '{arg}' is missing a value. Use {arg} {DefaultPort}.";
+                return false;
+            }
+
+            string value = args[valueIndex];
+            if (!TryParseCommandLinePort(value, out port))
+            {
+                error = $"Dedicated server command-line port '{value}' from '{arg}' is invalid. Enter a number from 1 to {ushort.MaxValue}.";
+                return false;
+            }
+
+            consumedNext = true;
+            return true;
+        }
+
+        private static bool TryReadInlinePort(string arg, string key, out ushort port, out string error)
+        {
+            port = DefaultPort;
+            error = null;
+            string prefix = key + "=";
+            if (!arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+
+            string value = arg.Substring(prefix.Length);
+            if (TryParseCommandLinePort(value, out port)) return true;
+
+            error = $"Dedicated server command-line port '{value}' from '{key}' is invalid. Enter a number from 1 to {ushort.MaxValue}.";
+            return true;
+        }
+
+        private static bool TryParseCommandLinePort(string value, out ushort port)
+        {
+            port = DefaultPort;
+            return ushort.TryParse(value, out port) && port != 0;
+        }
+
         private void Subscribe()
         {
             if (_networkManager == null || _subscribed) return;
@@ -304,7 +426,10 @@ namespace Infrastructure.Services.Network
             if (args.ConnectionState == LocalConnectionState.Started)
             {
                 _stopRequested = false;
-                RefreshStatus();
+                if (_clientStartRequested)
+                    SetStatus(NetworkConnectionStatus.StartingHost);
+                else
+                    RefreshStatus();
             }
             else if (args.ConnectionState == LocalConnectionState.Stopped)
             {
@@ -312,12 +437,14 @@ namespace Infrastructure.Services.Network
                 _stopRequested = false;
             }
             else if (args.ConnectionState == LocalConnectionState.Starting)
-                SetStatus(NetworkConnectionStatus.StartingServer);
+                SetStatus(_clientStartRequested ? NetworkConnectionStatus.StartingHost : NetworkConnectionStatus.StartingServer);
         }
 
         private void OnRemoteConnectionState(FishNet.Connection.NetworkConnection connection, RemoteConnectionStateArgs args)
         {
-            OnClientCountChanged?.Invoke(ConnectedClientCount);
+            int clientCount = ConnectedClientCount;
+            Debug.Log($"[NetworkConnectionService] Client {connection.ClientId} {args.ConnectionState}. Connected clients: {clientCount}.");
+            OnClientCountChanged?.Invoke(clientCount);
         }
 
         private void SetStatus(NetworkConnectionStatus next)

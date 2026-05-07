@@ -82,6 +82,7 @@ namespace Features.Networking
             _connectionService.RefreshStatus();
             GUILayout.Label($"Status: {_connectionService.Status}");
             GUILayout.Label($"Server clients: {_connectionService.ConnectedClientCount}");
+            GUILayout.Label("Server Only starts FishNet server without a local client.");
             if (!string.IsNullOrWhiteSpace(_lastConnectionFailure))
                 GUILayout.Label($"Last failure: {_lastConnectionFailure}");
 
@@ -108,7 +109,7 @@ namespace Features.Networking
                 if (TryGetPort(out ushort port))
                     _connectionService.StartClient(_address, port);
             }
-            if (GUILayout.Button("Server"))
+            if (GUILayout.Button("Server Only"))
             {
                 _lastConnectionFailure = null;
                 if (TryGetPort(out ushort port))
