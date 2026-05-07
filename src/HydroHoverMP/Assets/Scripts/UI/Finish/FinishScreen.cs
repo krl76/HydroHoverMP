@@ -5,6 +5,7 @@ using Core.States.Core;
 using Core.States.MainMenu;
 using Data;
 using Features.Networking;
+using Infrastructure.Services.Network;
 using Infrastructure.Services.Leaderboard;
 using Infrastructure.Services.RaceManager;
 using Infrastructure.Services.Window;
@@ -26,17 +27,22 @@ namespace UI.Finish
         private GameStateMachine _stateMachine;
         private IWindowService _windowService;
         private ILeaderboardService _leaderboardService;
+        private INetworkConnectionService _connectionService;
         private TextMeshProUGUI _networkResultsText;
         private TextMeshProUGUI _networkStatusText;
 
         [Inject]
         public void Construct(IRaceManagerService raceService,
-            GameStateMachine stateMachine, IWindowService windowService, ILeaderboardService leaderboardService)
+            GameStateMachine stateMachine,
+            IWindowService windowService,
+            ILeaderboardService leaderboardService,
+            INetworkConnectionService connectionService)
         {
             _raceService = raceService;
             _stateMachine = stateMachine;
             _windowService = windowService;
             _leaderboardService = leaderboardService;
+            _connectionService = connectionService;
         }
 
         private void Start()
@@ -79,6 +85,9 @@ namespace UI.Finish
 
         private void OnMenuClicked()
         {
+            if (NetworkSessionController.Instance != null)
+                _connectionService?.StopConnection();
+
             _windowService.Close(WindowID.Finish);
             _stateMachine.Enter<MainMenuState>();
         }
@@ -97,7 +106,7 @@ namespace UI.Finish
 
             NetworkSessionController session = NetworkSessionController.Instance;
             NetworkPlayerData[] players = FindObjectsByType<NetworkPlayerData>(FindObjectsSortMode.None);
-            if (session == null || players.Length == 0)
+            if (session == null)
             {
                 _networkResultsText.text = "No synced multiplayer finish data is visible in this scene.";
                 if (_networkStatusText != null)
@@ -110,6 +119,18 @@ namespace UI.Finish
                     ? "Server results synced to all clients"
                     : $"Session is {session.Phase.Value}; showing latest synced player data";
 
+            if (session.Results.Count > 0)
+            {
+                _networkResultsText.text = BuildSnapshotResults(session.Results);
+                return;
+            }
+
+            if (players.Length == 0)
+            {
+                _networkResultsText.text = "Waiting for server results or live player data to synchronize.";
+                return;
+            }
+
             List<NetworkPlayerData> orderedPlayers = players
                 .Where(player => player != null)
                 .OrderByDescending(player => player.IsFinished.Value)
@@ -119,6 +140,27 @@ namespace UI.Finish
                 .ToList();
 
             _networkResultsText.text = string.Join("\n", orderedPlayers.Select((player, index) => BuildResultLine(index + 1, player)));
+        }
+
+        private string BuildSnapshotResults(IReadOnlyList<NetworkRaceResult> results)
+        {
+            List<NetworkRaceResult> orderedResults = results
+                .OrderByDescending(result => result.IsFinished)
+                .ThenBy(result => result.IsFinished ? result.FinishTime : float.MaxValue)
+                .ThenByDescending(result => result.Score)
+                .ThenByDescending(result => result.CheckpointIndex)
+                .ThenBy(result => result.ClientId)
+                .ToList();
+
+            return string.Join("\n", orderedResults.Select((result, index) => BuildSnapshotResultLine(index + 1, result)));
+        }
+
+        private string BuildSnapshotResultLine(int place, NetworkRaceResult result)
+        {
+            string finish = result.IsFinished ? FormatTime(result.FinishTime) : "DNF";
+            string state = result.IsFinished ? "Finished" : result.HP > 0 ? "In progress" : "Out";
+            string disconnected = result.IsDisconnected ? " - Disconnected" : string.Empty;
+            return $"{place}. {result.Nickname} - {state}{disconnected} - {finish} - Score {result.Score} - HP {result.HP}";
         }
 
         private string BuildResultLine(int place, NetworkPlayerData player)

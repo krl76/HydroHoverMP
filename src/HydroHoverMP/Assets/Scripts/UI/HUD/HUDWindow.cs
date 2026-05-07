@@ -260,10 +260,6 @@ namespace UI.HUD
                 localPlayer.SetReady(true);
                 _readyAppliedToSpawnedPlayer = true;
             }
-            else if (_readyAppliedToSpawnedPlayer && session != null && session.Phase.Value != SessionPhase.Lobby)
-            {
-                _readyAppliedToSpawnedPlayer = false;
-            }
         }
 
         private NetworkPlayerData GetLocalNetworkPlayer()
@@ -427,8 +423,11 @@ namespace UI.HUD
             if (session == null || session.Phase.Value != SessionPhase.Results)
                 return string.Empty;
 
+            if (session.Results.Count > 0)
+                return BuildSnapshotResults(session.Results, localPlayer);
+
             if (players.Count == 0)
-                return "Results are waiting for players to synchronize.";
+                return "Results are waiting for the server snapshot to synchronize.";
 
             IEnumerable<NetworkPlayerData> orderedPlayers = players
                 .OrderByDescending(player => player.IsFinished.Value)
@@ -446,6 +445,31 @@ namespace UI.HUD
                     ? FormatTime(player.FinishTime.Value)
                     : player.IsAlive ? "DNF" : "Destroyed";
                 lines.Add($"{placement}. {player.Nickname.Value}{marker}  —  {finishState}  —  Score {player.Score.Value}");
+                placement++;
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        private static string BuildSnapshotResults(IReadOnlyList<NetworkRaceResult> results, NetworkPlayerData localPlayer)
+        {
+            IEnumerable<NetworkRaceResult> orderedResults = results
+                .OrderByDescending(result => result.IsFinished)
+                .ThenBy(result => result.IsFinished ? result.FinishTime : float.MaxValue)
+                .ThenByDescending(result => result.Score)
+                .ThenByDescending(result => result.CheckpointIndex)
+                .ThenBy(result => result.ClientId);
+
+            List<string> lines = new();
+            int placement = 1;
+            foreach (NetworkRaceResult result in orderedResults)
+            {
+                string marker = localPlayer != null && result.ClientId == localPlayer.ClientId ? " (you)" : string.Empty;
+                string finishState = result.IsFinished
+                    ? FormatTime(result.FinishTime)
+                    : result.HP > 0 ? "DNF" : "Destroyed";
+                string disconnect = result.IsDisconnected ? " | disconnected" : string.Empty;
+                lines.Add($"{placement}. {result.Nickname}{marker}  —  {finishState}  —  Score {result.Score}{disconnect}");
                 placement++;
             }
 
@@ -580,7 +604,7 @@ namespace UI.HUD
 
             CreateSectionText($"{objectName}_Title", rect, new Vector2(14f, 10f), new Vector2(size.x - 28f, 28f), 19, TextAlignmentOptions.TopLeft, TitleColor).text = title;
             bodyText = CreateSectionText($"{objectName}_Body", rect, new Vector2(14f, 42f), new Vector2(size.x - 28f, size.y - 52f), monospace ? 16 : 18, TextAlignmentOptions.TopLeft, Color.white);
-            bodyText.enableWordWrapping = !monospace;
+            bodyText.textWrappingMode = monospace ? TextWrappingModes.NoWrap : TextWrappingModes.Normal;
             bodyText.overflowMode = TextOverflowModes.Overflow;
             return panel;
         }

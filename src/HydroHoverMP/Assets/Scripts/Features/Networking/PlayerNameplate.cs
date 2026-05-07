@@ -101,7 +101,7 @@ namespace Features.Networking
             _label.alignment = TextAlignmentOptions.Center;
             _label.fontSize = 2.4f;
             _label.text = "Pilot";
-            _label.enableWordWrapping = false;
+            _label.textWrappingMode = TextWrappingModes.NoWrap;
             _label.outlineWidth = 0.16f;
             _label.color = _remoteColor;
         }

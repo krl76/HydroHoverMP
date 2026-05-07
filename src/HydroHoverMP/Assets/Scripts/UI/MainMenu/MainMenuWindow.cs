@@ -307,8 +307,10 @@ namespace UI.MainMenu
                     : "Enter nickname/address/port, then Connect.",
                 NetworkConnectionStatus.StartingHost => $"Starting Host on port {port}... loading shared Gameplay scene.",
                 NetworkConnectionStatus.StartingClient => $"Connecting to {address}:{port}...",
+                NetworkConnectionStatus.StartingServer => $"Starting server-only mode on port {port}...",
                 NetworkConnectionStatus.HostStarted => $"Host started. Clients: {_connectionService.ConnectedClientCount}.",
                 NetworkConnectionStatus.ClientStarted => "Client connected. Waiting for server scene/lobby.",
+                NetworkConnectionStatus.ServerStarted => $"Server-only mode running. Clients: {_connectionService.ConnectedClientCount}.",
                 NetworkConnectionStatus.Failed => string.IsNullOrWhiteSpace(_lastConnectionFailure)
                     ? "Connection failed. Check address, port and FishNet setup."
                     : _lastConnectionFailure,
@@ -648,8 +650,11 @@ namespace UI.MainMenu
                     ? "Results: race is still active. Finish order will appear here once the server ends the session."
                     : "Results: waiting for the server to enter the results phase.";
 
+            if (session.Results.Count > 0)
+                return BuildSnapshotResultsPreview(session.Results);
+
             if (players.Count == 0)
-                return "Results: no synchronized players available yet.";
+                return "Results: waiting for the server snapshot to synchronize.";
 
             IEnumerable<NetworkPlayerData> ordered = players
                 .OrderByDescending(player => player.IsFinished.Value)
@@ -664,6 +669,28 @@ namespace UI.MainMenu
             {
                 string finish = player.IsFinished.Value ? FormatTime(player.FinishTime.Value) : "DNF";
                 placements.Add($"{index}. {player.Nickname.Value} — {finish} — Score {player.Score.Value}");
+                index++;
+            }
+
+            return string.Join("\n", placements);
+        }
+
+        private static string BuildSnapshotResultsPreview(IReadOnlyList<NetworkRaceResult> results)
+        {
+            IEnumerable<NetworkRaceResult> ordered = results
+                .OrderByDescending(result => result.IsFinished)
+                .ThenBy(result => result.IsFinished ? result.FinishTime : float.MaxValue)
+                .ThenByDescending(result => result.Score)
+                .ThenByDescending(result => result.CheckpointIndex)
+                .ThenBy(result => result.ClientId);
+
+            List<string> placements = new();
+            int index = 1;
+            foreach (NetworkRaceResult result in ordered)
+            {
+                string finish = result.IsFinished ? FormatTime(result.FinishTime) : "DNF";
+                string disconnected = result.IsDisconnected ? " | disconnected" : string.Empty;
+                placements.Add($"{index}. {result.Nickname} — {finish} — Score {result.Score}{disconnected}");
                 index++;
             }
 
