@@ -16,6 +16,7 @@ namespace Features.Camera
 
         private CinemachineVirtualCamera _vcam;
         private Rigidbody _targetRb;
+        private Transform _targetTransform;
         
         private IPlayerService _playerService;
 
@@ -34,10 +35,20 @@ namespace Features.Camera
         {
             if (_playerService == null || _vcam == null) return;
 
-            if (_playerService.IsPlayerCreated && _targetRb == null)
+            if (!_playerService.IsLocalPlayerCreated)
             {
-                _targetRb = _playerService.Transform.gameObject.GetComponent<Rigidbody>();
+                _targetRb = null;
+                _targetTransform = null;
                 return;
+            }
+
+            Transform localPlayerTransform = _playerService.LocalPlayerTransform;
+            if (localPlayerTransform != _targetTransform)
+            {
+                _targetTransform = localPlayerTransform;
+                _targetRb = _targetTransform != null
+                    ? _targetTransform.GetComponent<Rigidbody>()
+                    : null;
             }
 
             if (_targetRb == null) return;
