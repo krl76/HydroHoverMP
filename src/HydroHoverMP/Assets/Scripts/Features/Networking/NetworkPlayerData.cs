@@ -84,6 +84,7 @@ namespace Features.Networking
             IsReady.Value = false;
             IsFinished.Value = false;
             FinishTime.Value = 0f;
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
         }
 
         public void ServerResetForRace()
@@ -95,24 +96,28 @@ namespace Features.Networking
             CheckpointIndex.Value = 0;
             IsFinished.Value = false;
             FinishTime.Value = 0f;
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
         }
 
         public void ServerSetCheckpoint(int checkpointIndex)
         {
             if (!IsServerInitialized) return;
             CheckpointIndex.Value = Mathf.Max(0, checkpointIndex);
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
         }
 
         public void ServerAddScore(int amount)
         {
             if (!IsServerInitialized) return;
             Score.Value = Mathf.Max(0, Score.Value + amount);
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
         }
 
         public void ServerApplyDamage(int amount)
         {
             if (!IsServerInitialized) return;
             HP.Value = Mathf.Clamp(HP.Value - Mathf.Abs(amount), 0, 100);
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
         }
 
         public void ServerMarkFinished(float finishTime)
@@ -121,6 +126,7 @@ namespace Features.Networking
 
             FinishTime.Value = Mathf.Max(0f, finishTime);
             IsFinished.Value = true;
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
         }
 
         [ServerRpc]
@@ -144,6 +150,7 @@ namespace Features.Networking
         private void ServerSetNickname(string nickname)
         {
             Nickname.Value = SanitizeNickname(nickname);
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
         }
 
         private void ServerSetReady(bool ready)
@@ -153,6 +160,7 @@ namespace Features.Networking
                 return;
 
             IsReady.Value = ready;
+            NetworkSessionController.Instance?.ServerRefreshPlayerSnapshot(this);
             NetworkSessionController.Instance?.RefreshReadyState();
         }
 

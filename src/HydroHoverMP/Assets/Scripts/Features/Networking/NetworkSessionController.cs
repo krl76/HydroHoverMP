@@ -8,6 +8,33 @@ using UnityEngine;
 
 namespace Features.Networking
 {
+    [System.Serializable]
+    public struct NetworkRaceResult
+    {
+        public int ClientId;
+        public string Nickname;
+        public int HP;
+        public int Score;
+        public int CheckpointIndex;
+        public bool IsReady;
+        public bool IsFinished;
+        public bool IsDisconnected;
+        public float FinishTime;
+
+        public NetworkRaceResult(NetworkPlayerData player, bool disconnected)
+        {
+            ClientId = player != null ? player.ClientId : -1;
+            Nickname = player != null ? player.Nickname.Value : "Pilot";
+            HP = player != null ? player.HP.Value : 0;
+            Score = player != null ? player.Score.Value : 0;
+            CheckpointIndex = player != null ? player.CheckpointIndex.Value : 0;
+            IsReady = player != null && player.IsReady.Value;
+            IsFinished = player != null && player.IsFinished.Value;
+            IsDisconnected = disconnected;
+            FinishTime = player != null ? player.FinishTime.Value : 0f;
+        }
+    }
+
     public enum SessionPhase : byte
     {
         Disconnected = 0,
@@ -32,6 +59,7 @@ namespace Features.Networking
         public readonly SyncVar<int> ConnectedPlayers = new(0);
         public readonly SyncVar<int> ReadyPlayers = new(0);
         public readonly SyncVar<float> CountdownRemaining = new(0f);
+        public readonly SyncList<NetworkRaceResult> Results = new();
 
         public IReadOnlyCollection<NetworkPlayerData> Players => _players.Values;
 
@@ -77,6 +105,7 @@ namespace Features.Networking
             if (!IsServerInitialized || player == null) return;
 
             _players[player.OwnerId] = player;
+            UpsertResult(player, false);
             ConnectedPlayers.Value = _players.Count;
             RefreshReadyState();
         }
@@ -85,12 +114,10 @@ namespace Features.Networking
         {
             if (!IsServerInitialized || player == null) return;
 
+            UpsertResult(player, true);
             _players.Remove(player.OwnerId);
             ConnectedPlayers.Value = _players.Count;
-            RefreshReadyState();
-
-            if (Phase.Value == SessionPhase.Race && _players.Count <= 1)
-                ServerShowResults();
+            HandlePlayerCountChangedAfterDisconnect();
         }
 
         public void RefreshReadyState()
@@ -101,37 +128,54 @@ namespace Features.Networking
             ConnectedPlayers.Value = _players.Count;
 
             if (Phase.Value == SessionPhase.Lobby &&
-                ConnectedPlayers.Value >= _minimumPlayers &&
-                ReadyPlayers.Value == ConnectedPlayers.Value)
+                CanStartCountdown())
             {
-                ServerStartCountdown();
+                ServerStartCountdown(false);
             }
+
+            if (Phase.Value == SessionPhase.Countdown && !CanStartCountdown())
+                ServerCancelCountdown();
         }
 
         [ServerRpc(RequireOwnership = false)]
-        public void RequestRestartServerRpc()
+        public void RequestRestartServerRpc(NetworkConnection sender = null)
         {
+            if (!CanAcceptHostSessionAction(sender)) return;
+            if (Phase.Value != SessionPhase.Results) return;
+
             ServerReturnToLobby();
         }
 
         [ServerRpc(RequireOwnership = false)]
-        public void RequestForceStartServerRpc()
+        public void RequestForceStartServerRpc(NetworkConnection sender = null)
         {
+            if (!CanAcceptSessionAction(sender)) return;
+            if (sender != null && sender.ClientId != 0) return;
+
             if (Phase.Value == SessionPhase.Lobby && ConnectedPlayers.Value > 0)
-                ServerStartCountdown();
+                ServerStartCountdown(true);
         }
 
         public void ServerShowResults()
         {
             if (!IsServerInitialized) return;
 
+            RefreshResultSnapshots();
             CountdownRemaining.Value = 0f;
             Phase.Value = SessionPhase.Results;
         }
 
-        private void ServerStartCountdown()
+        private void ServerStartCountdown(bool forceStart)
         {
             if (!IsServerInitialized) return;
+            if (forceStart)
+            {
+                if (_players.Count == 0) return;
+            }
+            else if (!CanStartCountdown())
+            {
+                return;
+            }
 
             Phase.Value = SessionPhase.Countdown;
             _countdownEndsAt = Time.time + _countdownSeconds;
@@ -141,9 +185,14 @@ namespace Features.Networking
         private void ServerStartRace()
         {
             if (!IsServerInitialized) return;
+            if (Phase.Value != SessionPhase.Countdown) return;
+            if (_players.Count == 0) return;
 
             foreach (NetworkPlayerData player in _players.Values)
                 player.ServerResetForRace();
+
+            Results.Clear();
+            RefreshResultSnapshots();
 
             CountdownRemaining.Value = 0f;
             Phase.Value = SessionPhase.Race;
@@ -157,6 +206,8 @@ namespace Features.Networking
             foreach (NetworkPlayerData player in _players.Values)
                 player.ServerResetForLobby();
 
+            Results.Clear();
+            RefreshResultSnapshots();
             CountdownRemaining.Value = 0f;
             Phase.Value = SessionPhase.Lobby;
             RefreshReadyState();
@@ -168,6 +219,79 @@ namespace Features.Networking
 
             if (args.ConnectionState == RemoteConnectionState.Stopped)
                 RefreshReadyState();
+        }
+
+        public void ServerRefreshPlayerSnapshot(NetworkPlayerData player)
+        {
+            if (!IsServerInitialized || player == null) return;
+
+            UpsertResult(player, false);
+        }
+
+        private bool CanStartCountdown()
+        {
+            return ConnectedPlayers.Value >= _minimumPlayers &&
+                   ReadyPlayers.Value == ConnectedPlayers.Value &&
+                   ConnectedPlayers.Value > 0;
+        }
+
+        private void ServerCancelCountdown()
+        {
+            CountdownRemaining.Value = 0f;
+            Phase.Value = SessionPhase.Lobby;
+        }
+
+        private void HandlePlayerCountChangedAfterDisconnect()
+        {
+            RefreshReadyState();
+
+            if (Phase.Value == SessionPhase.Countdown && !CanStartCountdown())
+                ServerCancelCountdown();
+            else if (Phase.Value == SessionPhase.Race && _players.Count <= 1)
+                ServerShowResults();
+            else if (Phase.Value == SessionPhase.Results)
+                RefreshResultSnapshots();
+        }
+
+        private bool CanAcceptSessionAction(NetworkConnection sender)
+        {
+            if (!IsServerInitialized) return false;
+            return sender == null || _players.ContainsKey(sender.ClientId);
+        }
+
+        private bool CanAcceptHostSessionAction(NetworkConnection sender)
+        {
+            if (!CanAcceptSessionAction(sender)) return false;
+            return sender == null || sender.ClientId == 0;
+        }
+
+        private void RefreshResultSnapshots()
+        {
+            foreach (NetworkPlayerData player in _players.Values)
+                UpsertResult(player, false);
+        }
+
+        private void UpsertResult(NetworkPlayerData player, bool disconnected)
+        {
+            if (player == null) return;
+
+            NetworkRaceResult snapshot = new(player, disconnected);
+            int existingIndex = FindResultIndex(player.ClientId);
+            if (existingIndex >= 0)
+                Results[existingIndex] = snapshot;
+            else
+                Results.Add(snapshot);
+        }
+
+        private int FindResultIndex(int clientId)
+        {
+            for (int i = 0; i < Results.Count; i++)
+            {
+                if (Results[i].ClientId == clientId)
+                    return i;
+            }
+
+            return -1;
         }
     }
 }

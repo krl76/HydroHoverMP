@@ -73,6 +73,7 @@ namespace Features.Networking
             player.ServerAddScore(_finishScore);
 
             if (NetworkSessionController.Instance != null &&
+                NetworkSessionController.Instance.Players.Any() &&
                 NetworkSessionController.Instance.Players.All(p => p.IsFinished.Value || !p.IsAlive))
             {
                 NetworkSessionController.Instance.ServerShowResults();
