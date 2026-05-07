@@ -7,6 +7,7 @@ namespace Features.Networking
     [RequireComponent(typeof(NetworkPlayerData))]
     public sealed class PlayerNameplate : MonoBehaviour
     {
+        [SerializeField] private bool _showNameplate;
         [SerializeField] private TextMeshPro _label;
         [SerializeField] private Vector3 _worldOffset = new(0f, 2.4f, 0f);
         [SerializeField] private Color _ownerColor = new(0.4f, 0.9f, 1f);
@@ -22,11 +23,20 @@ namespace Features.Networking
         {
             _playerData = GetComponent<NetworkPlayerData>();
             _networkBehaviour = GetComponent<FishNet.Object.NetworkBehaviour>();
-            EnsureLabel();
+            if (_showNameplate)
+                EnsureLabel();
+            else
+                HideLabel();
         }
 
         private void OnEnable()
         {
+            if (!_showNameplate)
+            {
+                HideLabel();
+                return;
+            }
+
             if (_playerData != null)
             {
                 _playerData.OnAnyValueChanged += OnPlayerValueChanged;
@@ -42,7 +52,7 @@ namespace Features.Networking
 
         private void LateUpdate()
         {
-            if (_label == null) return;
+            if (!_showNameplate || _label == null) return;
 
             _camera ??= UnityEngine.Camera.main;
             if (_camera == null) return;
@@ -59,7 +69,7 @@ namespace Features.Networking
 
         private void Refresh()
         {
-            if (_label == null || _playerData == null) return;
+            if (!_showNameplate || _label == null || _playerData == null) return;
 
             string status = BuildStatus();
             _label.text = $"{_playerData.Nickname.Value}\nHP {_playerData.HP.Value}  Score {_playerData.Score.Value}\n{status}";
@@ -93,7 +103,11 @@ namespace Features.Networking
 
         private void EnsureLabel()
         {
-            if (_label != null) return;
+            if (_label != null)
+            {
+                _label.gameObject.SetActive(true);
+                return;
+            }
 
             GameObject labelObject = new("Nameplate");
             labelObject.transform.SetParent(transform, false);
@@ -104,6 +118,12 @@ namespace Features.Networking
             _label.textWrappingMode = TextWrappingModes.NoWrap;
             _label.outlineWidth = 0.16f;
             _label.color = _remoteColor;
+        }
+
+        private void HideLabel()
+        {
+            if (_label != null)
+                _label.gameObject.SetActive(false);
         }
 
         private static string FormatTime(float timeSeconds)
