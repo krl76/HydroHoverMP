@@ -310,6 +310,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 54a0e53483df05c49992aafeb45ed33d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Features.Networking.NetworkLevelAdditiveLoader
+  _levelSceneAddress: Scene/Level
   _levelSceneName: Level
 --- !u!114 &127359150
 MonoBehaviour:
@@ -347,6 +348,7 @@ MonoBehaviour:
   _networkObjectCache: {fileID: 0}
   _minimumPlayers: 2
   _countdownSeconds: 3
+  _dedicatedLeaderboardFileName: dedicated_leaderboard.json
 --- !u!114 &127359152
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -545,6 +547,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 70d002e457be4644b4992eb723b26152, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WaterPhysicsSystem
+  _settings: {fileID: 0}
 --- !u!1 &377220343
 GameObject:
   m_ObjectHideFlags: 0

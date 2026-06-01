@@ -358,6 +358,7 @@ MonoBehaviour:
   _waterSource: {fileID: 8303330224727804107}
   _minPitch: 0.8
   _maxPitch: 1.5
+  _waterImpactCooldown: 0.25
 --- !u!114 &8228103636671267356
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -510,6 +511,7 @@ MonoBehaviour:
   _hoverController: {fileID: 0}
   _rigidbody: {fileID: 0}
   _ownerOnlyBehaviours: []
+  _disableChildCamerasForRemote: 1
 --- !u!114 &1769908396771844597
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -543,10 +545,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8363b0cb7f395874f8dfa7ec7005d844, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Features.Networking.PlayerNameplate
+  _showNameplate: 0
   _label: {fileID: 0}
   _worldOffset: {x: 0, y: 2.4, z: 0}
   _ownerColor: {r: 0.4, g: 0.9, b: 1, a: 1}
   _remoteColor: {r: 1, g: 1, b: 1, a: 1}
+  _readyColor: {r: 0.57, g: 1, b: 0.67, a: 1}
+  _damagedColor: {r: 1, g: 0.68, b: 0.34, a: 1}
 --- !u!1 &1043666725274324933
 GameObject:
   m_ObjectHideFlags: 0
