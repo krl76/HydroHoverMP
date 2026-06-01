@@ -2,7 +2,9 @@
 using Core.States.Core;
 using Core.States.MainMenu;
 using Data;
+using Features.Networking;
 using FishNet;
+using Infrastructure.Services.Network;
 using Infrastructure.Services.Window;
 using UnityEngine;
 using UnityEngine.UI;
@@ -20,12 +22,14 @@ namespace UI.Pause
 
         private IWindowService _windowService;
         private GameStateMachine _stateMachine;
+        private INetworkConnectionService _connectionService;
 
         [Inject]
-        public void Construct(IWindowService windowService, GameStateMachine stateMachine)
+        public void Construct(IWindowService windowService, GameStateMachine stateMachine, INetworkConnectionService connectionService)
         {
             _windowService = windowService;
             _stateMachine = stateMachine;
+            _connectionService = connectionService;
         }
 
         private void OnEnable()
@@ -66,6 +70,12 @@ namespace UI.Pause
         private void GoToMenu()
         {
             Time.timeScale = 1f;
+
+            // Stop the active host/client so the menu's Host/Client buttons re-enable
+            // (they only enable when connection status is Offline/Failed). Mirrors FinishScreen.
+            if (NetworkSessionController.Instance != null)
+                _connectionService?.StopConnection();
+
             _windowService.Close(WindowID.Pause);
             _stateMachine.Enter<MainMenuState>();
         }
