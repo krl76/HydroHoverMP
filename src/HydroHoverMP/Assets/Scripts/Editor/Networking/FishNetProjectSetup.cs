@@ -63,9 +63,13 @@ namespace HydroHoverMP.Editor.Networking
 
                 Button startButton = EnsureHostStartButton(root.transform);
                 TextMeshProUGUI pingText = EnsurePingText(root.transform);
+                TextMeshProUGUI countdownText = EnsureCountdownText(root.transform);
+                TextMeshProUGUI leaderboardText = EnsureLeaderboardText(root.transform);
                 SerializedObject serializedHud = new(hudWindow);
                 serializedHud.FindProperty("_hostStartButton").objectReferenceValue = startButton;
                 serializedHud.FindProperty("_pingText").objectReferenceValue = pingText;
+                serializedHud.FindProperty("_countdownText").objectReferenceValue = countdownText;
+                serializedHud.FindProperty("_leaderboardText").objectReferenceValue = leaderboardText;
                 serializedHud.ApplyModifiedPropertiesWithoutUndo();
 
                 PrefabUtility.SaveAsPrefabAsset(root, HudPrefabPath);
@@ -173,6 +177,88 @@ namespace HydroHoverMP.Editor.Networking
             text.textWrappingMode = TextWrappingModes.NoWrap;
 
             return text;
+        }
+
+        private static TextMeshProUGUI EnsureCountdownText(Transform hudRoot)
+        {
+            Transform existing = hudRoot.Find("Countdown");
+            GameObject countdownObject = existing != null ? existing.gameObject : new GameObject("Countdown", typeof(RectTransform));
+            if (existing == null)
+                countdownObject.transform.SetParent(hudRoot, false);
+
+            RectTransform rect = countdownObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = new Vector2(0f, 40f);
+            rect.sizeDelta = new Vector2(260f, 160f);
+
+            TextMeshProUGUI referenceText = hudRoot.Find("Timer")?.GetComponent<TextMeshProUGUI>()
+                ?? hudRoot.GetComponentsInChildren<TextMeshProUGUI>(true).FirstOrDefault();
+
+            TextMeshProUGUI text = countdownObject.GetComponent<TextMeshProUGUI>();
+            if (text == null)
+                text = countdownObject.AddComponent<TextMeshProUGUI>();
+
+            ApplyTextStyle(text, referenceText, 96f, FontStyles.Bold, TextAlignmentOptions.Center);
+            text.text = "3";
+            text.raycastTarget = false;
+            text.gameObject.SetActive(false);
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+            return text;
+        }
+
+        private static TextMeshProUGUI EnsureLeaderboardText(Transform hudRoot)
+        {
+            Transform existing = hudRoot.Find("Leaderboard");
+            GameObject leaderboardObject = existing != null ? existing.gameObject : new GameObject("Leaderboard", typeof(RectTransform));
+            if (existing == null)
+                leaderboardObject.transform.SetParent(hudRoot, false);
+
+            RectTransform rect = leaderboardObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(1f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 1f);
+            rect.anchoredPosition = new Vector2(-24f, -24f);
+            rect.sizeDelta = new Vector2(360f, 220f);
+
+            TextMeshProUGUI referenceText = hudRoot.Find("Timer")?.GetComponent<TextMeshProUGUI>()
+                ?? hudRoot.GetComponentsInChildren<TextMeshProUGUI>(true).FirstOrDefault();
+
+            TextMeshProUGUI text = leaderboardObject.GetComponent<TextMeshProUGUI>();
+            if (text == null)
+                text = leaderboardObject.AddComponent<TextMeshProUGUI>();
+
+            ApplyTextStyle(text, referenceText, 20f, FontStyles.Normal, TextAlignmentOptions.TopRight);
+            text.text = "Leaderboard";
+            text.raycastTarget = false;
+            text.textWrappingMode = TextWrappingModes.Normal;
+            return text;
+        }
+
+        private static void ApplyTextStyle(
+            TextMeshProUGUI text,
+            TextMeshProUGUI referenceText,
+            float fontSize,
+            FontStyles fontStyle,
+            TextAlignmentOptions alignment)
+        {
+            if (referenceText != null)
+            {
+                text.font = referenceText.font;
+                text.fontSharedMaterial = referenceText.fontSharedMaterial;
+                text.color = referenceText.color;
+                text.enableAutoSizing = referenceText.enableAutoSizing;
+            }
+            else
+            {
+                text.color = Color.white;
+                text.enableAutoSizing = false;
+            }
+
+            text.fontSize = fontSize;
+            text.fontStyle = fontStyle;
+            text.alignment = alignment;
         }
 
         private static void ConfigurePlayerPrefab()

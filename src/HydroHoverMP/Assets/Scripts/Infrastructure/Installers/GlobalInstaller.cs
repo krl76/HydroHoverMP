@@ -10,12 +10,20 @@ using Infrastructure.Services.RaceManager;
 using Infrastructure.Services.SceneManagement;
 using Infrastructure.Services.Settings;
 using Infrastructure.Services.Window;
+using UnityEngine;
 using Zenject;
 
 namespace Infrastructure.Installers
 {
     public class GlobalInstaller : MonoInstaller
     {
+        [Header("Leaderboard")]
+        [SerializeField] private LeaderboardSourceMode _leaderboardSourceMode = LeaderboardSourceMode.Local;
+
+        [Header("Dedicated Server")]
+        [SerializeField] private string _dedicatedServerAddress = DedicatedServerConfiguration.DefaultAddress;
+        [SerializeField] private ushort _dedicatedServerPort = DedicatedServerConfiguration.DefaultPort;
+
         public override void InstallBindings()
         {
             BindCoreSystems();
@@ -43,10 +51,33 @@ namespace Infrastructure.Installers
             Container.Bind<IWindowService>().To<WindowService>().AsSingle();
             Container.Bind<IPlayerService>().To<PlayerService>().AsSingle();
             Container.Bind<IRaceManagerService>().To<RaceManagerService>().AsSingle();
+            DedicatedServerConfiguration dedicatedServerConfiguration = CreateDedicatedServerConfiguration();
+            Container.BindInstance(dedicatedServerConfiguration).AsSingle();
+            Container.BindInstance(CreateLeaderboardConfiguration(dedicatedServerConfiguration)).AsSingle();
             Container.Bind<ILeaderboardService>().To<LeaderboardService>().AsSingle();
             Container.Bind<IAudioService>().To<AudioService>().AsSingle();
             Container.Bind<ISettingsService>().To<SettingsService>().AsSingle();
             Container.BindInterfacesTo<NetworkConnectionService>().AsSingle();
+        }
+
+        private DedicatedServerConfiguration CreateDedicatedServerConfiguration()
+        {
+            return new DedicatedServerConfiguration
+            {
+                Address = _dedicatedServerAddress,
+                Port = _dedicatedServerPort == 0
+                    ? DedicatedServerConfiguration.DefaultPort
+                    : _dedicatedServerPort
+            };
+        }
+
+        private LeaderboardConfiguration CreateLeaderboardConfiguration(DedicatedServerConfiguration dedicatedServerConfiguration)
+        {
+            return new LeaderboardConfiguration
+            {
+                SourceMode = _leaderboardSourceMode,
+                DedicatedServer = dedicatedServerConfiguration
+            };
         }
     }
 }

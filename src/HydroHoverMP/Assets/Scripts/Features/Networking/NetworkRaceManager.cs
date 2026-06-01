@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using FishNet.Object;
 using UnityEngine;
 
@@ -71,6 +71,7 @@ namespace Features.Networking
             float finishTime = Mathf.Max(0f, Time.time - _serverRaceStartTime);
             player.ServerMarkFinished(finishTime);
             player.ServerAddScore(_finishScore);
+            NetworkSessionController.Instance?.ServerAddDedicatedLeaderboardRecord(finishTime);
 
             if (NetworkSessionController.Instance != null &&
                 NetworkSessionController.Instance.Players.Any() &&
@@ -81,3 +82,4 @@ namespace Features.Networking
         }
     }
 }
+

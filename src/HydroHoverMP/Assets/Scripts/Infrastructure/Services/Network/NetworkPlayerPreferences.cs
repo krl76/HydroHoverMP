@@ -7,7 +7,6 @@ namespace Infrastructure.Services.Network
         private const string NicknameKey = "HydroHoverMP.Network.Nickname";
         private const string AddressKey = "HydroHoverMP.Network.Address";
         private const string PortKey = "HydroHoverMP.Network.Port";
-        private const ushort DefaultPort = 7770;
         private const int MaxNicknameLength = 18;
 
         public static string GetNickname()
@@ -23,8 +22,16 @@ namespace Infrastructure.Services.Network
 
         public static string GetAddress()
         {
-            string address = PlayerPrefs.GetString(AddressKey, "localhost");
-            return string.IsNullOrWhiteSpace(address) ? "localhost" : address.Trim();
+            return GetAddress(DedicatedServerConfiguration.DefaultAddress);
+        }
+
+        public static string GetAddress(string defaultAddress)
+        {
+            string fallbackAddress = string.IsNullOrWhiteSpace(defaultAddress)
+                ? DedicatedServerConfiguration.DefaultAddress
+                : defaultAddress.Trim();
+            string address = PlayerPrefs.GetString(AddressKey, fallbackAddress);
+            return string.IsNullOrWhiteSpace(address) ? fallbackAddress : address.Trim();
         }
 
         public static void SetAddress(string address)
@@ -35,8 +42,14 @@ namespace Infrastructure.Services.Network
 
         public static ushort GetPort()
         {
-            int port = PlayerPrefs.GetInt(PortKey, DefaultPort);
-            return port is > 0 and <= ushort.MaxValue ? (ushort)port : DefaultPort;
+            return GetPort(DedicatedServerConfiguration.DefaultPort);
+        }
+
+        public static ushort GetPort(ushort defaultPort)
+        {
+            ushort fallbackPort = defaultPort == 0 ? DedicatedServerConfiguration.DefaultPort : defaultPort;
+            int port = PlayerPrefs.GetInt(PortKey, fallbackPort);
+            return port is > 0 and <= ushort.MaxValue ? (ushort)port : fallbackPort;
         }
 
         public static void SetPort(ushort port)

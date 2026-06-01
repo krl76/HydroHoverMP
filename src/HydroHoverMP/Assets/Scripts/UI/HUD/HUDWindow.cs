@@ -24,6 +24,8 @@ namespace UI.HUD
         [SerializeField] private TextMeshProUGUI _checkpointText;
         [SerializeField] private TextMeshProUGUI _fpsText;
         [SerializeField] private TextMeshProUGUI _pingText;
+        [SerializeField] private TextMeshProUGUI _countdownText;
+        [SerializeField] private TextMeshProUGUI _leaderboardText;
 
         [Header("Speedometer")]
         [SerializeField] private RectTransform _speedNeedle;
@@ -94,6 +96,12 @@ namespace UI.HUD
                 _hostStartButton.onClick.AddListener(OnHostStartClicked);
                 _hostStartButton.gameObject.SetActive(false);
             }
+
+            if (_countdownText != null)
+                _countdownText.gameObject.SetActive(false);
+
+            if (_leaderboardText != null)
+                _leaderboardText.gameObject.SetActive(false);
         }
 
         private void Update()
@@ -183,18 +191,16 @@ namespace UI.HUD
                 UpdateRaceInfoUI();
                 RestoreNetworkTextColors();
                 RefreshHostStartButton(null, null);
+                RefreshCountdown(null);
+                RefreshLeaderboard(null, localPlayer);
                 return;
             }
 
             RefreshHostStartButton(session, localPlayer);
 
-            if (_timerText != null)
-            {
-                _timerText.text = HasTransientNetworkMessage()
-                    ? _networkMessage
-                    : BuildNetworkPhaseLine(session);
-                _timerText.color = HasTransientNetworkMessage() && _networkMessageIsError ? NetworkErrorColor : Color.white;
-            }
+            UpdateRaceInfoUI();
+            RefreshCountdown(session);
+            RefreshLeaderboard(session, localPlayer);
 
             if (_checkpointText != null)
             {
@@ -203,22 +209,6 @@ namespace UI.HUD
             }
 
             TrackDisconnectMessage(session);
-        }
-
-        private string BuildNetworkPhaseLine(NetworkSessionController session)
-        {
-            if (session == null)
-                return _connectionService != null ? _connectionService.Status.ToString() : "Network";
-
-            return session.Phase.Value switch
-            {
-                SessionPhase.Lobby => $"Lobby - waiting ({session.ConnectedPlayers.Value})",
-                SessionPhase.Countdown => $"Start in {Mathf.Max(1, Mathf.CeilToInt(session.CountdownRemaining.Value))}",
-                SessionPhase.Race => "Race live",
-                SessionPhase.Results => BuildResultsSummary(session),
-                SessionPhase.Disconnected => "Disconnected",
-                _ => session.Phase.Value.ToString()
-            };
         }
 
         private string BuildLocalPlayerLine(NetworkPlayerData localPlayer)
@@ -233,23 +223,128 @@ namespace UI.HUD
             return $"CP {localPlayer.CheckpointIndex.Value}/{checkpointTotal}";
         }
 
-        private string BuildResultsSummary(NetworkSessionController session)
+        private void RefreshCountdown(NetworkSessionController session)
         {
-            NetworkPlayerData localPlayer = GetLocalNetworkPlayer();
-            if (session.Results.Count > 0)
-            {
-                NetworkRaceResult? localResult = session.Results.FirstOrDefault(result => localPlayer != null && result.ClientId == localPlayer.ClientId);
-                if (localResult.HasValue)
-                {
-                    NetworkRaceResult result = localResult.Value;
-                    string finish = result.IsFinished ? FormatTime(result.FinishTime) : "DNF";
-                    return $"Results | Score {result.Score} | {finish}";
-                }
+            if (_countdownText == null)
+                return;
 
-                return $"Results | {session.Results.Count} pilots ranked";
+            bool shouldShow = session != null && session.Phase.Value == SessionPhase.Countdown;
+            if (_countdownText.gameObject.activeSelf != shouldShow)
+                _countdownText.gameObject.SetActive(shouldShow);
+
+            if (!shouldShow)
+            {
+                _countdownText.text = string.Empty;
+                return;
             }
 
-            return "Results";
+            _countdownText.text = Mathf.Max(1, Mathf.CeilToInt(session.CountdownRemaining.Value)).ToString();
+        }
+
+        private void RefreshLeaderboard(NetworkSessionController session, NetworkPlayerData localPlayer)
+        {
+            if (_leaderboardText == null)
+                return;
+
+            bool shouldShow = session != null;
+            if (_leaderboardText.gameObject.activeSelf != shouldShow)
+                _leaderboardText.gameObject.SetActive(shouldShow);
+
+            if (!shouldShow)
+            {
+                _leaderboardText.text = string.Empty;
+                return;
+            }
+
+            string header = HasTransientNetworkMessage()
+                ? _networkMessage
+                : BuildLeaderboardHeader(session);
+
+            string standings = BuildLeaderboardStandings(session, localPlayer);
+            _leaderboardText.text = string.IsNullOrWhiteSpace(standings)
+                ? header
+                : $"{header}\n{standings}";
+            _leaderboardText.color = HasTransientNetworkMessage() && _networkMessageIsError
+                ? NetworkErrorColor
+                : Color.white;
+        }
+
+        private string BuildLeaderboardHeader(NetworkSessionController session)
+        {
+            if (session == null)
+                return _connectionService != null ? _connectionService.Status.ToString() : "Network";
+
+            return session.Phase.Value switch
+            {
+                SessionPhase.Lobby => $"Lobby  {session.ReadyPlayers.Value}/{session.ConnectedPlayers.Value} ready",
+                SessionPhase.Countdown => "Race starts",
+                SessionPhase.Race => "Leaderboard",
+                SessionPhase.Results => "Results",
+                SessionPhase.Disconnected => "Disconnected",
+                _ => session.Phase.Value.ToString()
+            };
+        }
+
+        private string BuildLeaderboardStandings(NetworkSessionController session, NetworkPlayerData localPlayer)
+        {
+            if (session == null || session.Results.Count == 0)
+                return string.Empty;
+
+            var orderedResults = session.Results
+                .OrderBy(result => GetLeaderboardSortRank(session.Phase.Value, result))
+                .ThenBy(result => result.IsFinished ? result.FinishTime : float.MaxValue)
+                .ThenByDescending(result => result.CheckpointIndex)
+                .ThenByDescending(result => result.Score)
+                .ThenBy(result => result.ClientId)
+                .ToList();
+
+            SessionPhase phase = session.Phase.Value;
+
+            return string.Join("\n", orderedResults.Select((result, index) =>
+            {
+                string nickname = string.IsNullOrWhiteSpace(result.Nickname) ? "Pilot" : result.Nickname;
+                string marker = localPlayer != null && result.ClientId == localPlayer.ClientId ? ">" : " ";
+                return $"{marker}{index + 1}. {nickname}  {BuildResultProgress(result)}  {BuildResultStatus(phase, result)}";
+            }));
+        }
+
+        private static int GetLeaderboardSortRank(SessionPhase phase, NetworkRaceResult result)
+        {
+            if (result.IsDisconnected)
+                return 3;
+
+            if (phase == SessionPhase.Results)
+                return result.IsFinished ? 0 : 2;
+
+            if (result.IsFinished)
+                return 0;
+
+            if (phase == SessionPhase.Race)
+                return 1;
+
+            return result.IsReady ? 1 : 2;
+        }
+
+        private static string BuildResultProgress(NetworkRaceResult result)
+        {
+            return $"CP {result.CheckpointIndex} · {result.Score} pts";
+        }
+
+        private static string BuildResultStatus(SessionPhase phase, NetworkRaceResult result)
+        {
+            if (result.IsDisconnected)
+                return "DC";
+
+            if (result.IsFinished)
+                return FormatTime(result.FinishTime);
+
+            if (result.HP <= 0)
+                return "OUT";
+
+            if (phase == SessionPhase.Race)
+                return "RACING";
+
+            return result.IsReady ? "READY" : "WAIT";
         }
 
         private void ApplyLocalNetworkDefaults()

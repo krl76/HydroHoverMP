@@ -5,8 +5,14 @@ namespace Infrastructure.Services.Leaderboard
 {
     public interface ILeaderboardService
     {
+        LeaderboardSourceMode SourceMode { get; }
+        string DedicatedServerAddress { get; }
+        ushort DedicatedServerPort { get; }
+        bool IsUsingDedicatedServer { get; }
+
         void AddRecord(float time);
         List<Record> GetTopRecords(int count);
         float GetBestTime();
+        void RequestDedicatedRecords();
     }
 }

@@ -10,14 +10,15 @@ namespace Infrastructure.Services.Network
 {
     public sealed class NetworkConnectionService : INetworkConnectionService, IInitializable, IDisposable
     {
-        private const string LocalhostAddress = "localhost";
-        private const ushort DefaultPort = 7770;
+        private const string LocalhostAddress = DedicatedServerConfiguration.DefaultAddress;
+        private const ushort DefaultPort = DedicatedServerConfiguration.DefaultPort;
         private const string DedicatedServerArg = "-dedicatedServer";
         private const string ServerOnlyArg = "-serverOnly";
         private const string PortArg = "-port";
         private const string ServerPortArg = "-serverPort";
 
         private NetworkManager _networkManager;
+        private readonly DedicatedServerConfiguration _dedicatedServerConfiguration;
         private bool _subscribed;
         private bool _stopRequested;
         private bool _clientStartRequested;
@@ -35,6 +36,11 @@ namespace Infrastructure.Services.Network
         public event Action<NetworkConnectionStatus> OnStatusChanged;
         public event Action<int> OnClientCountChanged;
         public event Action<string> OnConnectionFailed;
+
+        public NetworkConnectionService(DedicatedServerConfiguration dedicatedServerConfiguration = null)
+        {
+            _dedicatedServerConfiguration = dedicatedServerConfiguration ?? new DedicatedServerConfiguration();
+        }
 
         public void Initialize()
         {
@@ -266,7 +272,7 @@ namespace Infrastructure.Services.Network
         private void TryStartServerFromCommandLine()
         {
             string[] args = Environment.GetCommandLineArgs();
-            if (!TryGetCommandLineServerPort(args, out ushort port, out string error))
+            if (!TryGetCommandLineServerPortWithDefault(args, ConfiguredDefaultPort, out ushort port, out string error))
             {
                 if (!string.IsNullOrWhiteSpace(error))
                     Debug.LogError($"[NetworkConnectionService] {error}");
@@ -279,7 +285,13 @@ namespace Infrastructure.Services.Network
 
         private static bool TryGetCommandLineServerPort(string[] args, out ushort port, out string error)
         {
-            port = DefaultPort;
+            return TryGetCommandLineServerPortWithDefault(args, DefaultPort, out port, out error);
+        }
+
+        private static bool TryGetCommandLineServerPortWithDefault(string[] args, ushort defaultPort, out ushort port, out string error)
+        {
+            ushort fallbackPort = defaultPort == 0 ? DefaultPort : defaultPort;
+            port = fallbackPort;
             error = null;
             if (args == null || args.Length == 0) return false;
 
@@ -297,7 +309,7 @@ namespace Infrastructure.Services.Network
                     continue;
                 }
 
-                if (!TryReadPortArg(args, i, arg, out ushort parsedPort, out bool consumedNext, out string portError))
+                if (!TryReadPortArg(args, i, arg, fallbackPort, out ushort parsedPort, out bool consumedNext, out string portError))
                 {
                     if (!string.IsNullOrWhiteSpace(portError))
                     {
@@ -315,9 +327,11 @@ namespace Infrastructure.Services.Network
             if (!serverRequested) return false;
             if (!invalidPortFlag) return true;
 
-            error = invalidPortError ?? $"Dedicated server command-line port is invalid. Use {PortArg} {DefaultPort} or {ServerPortArg} {DefaultPort}.";
+            error = invalidPortError ?? $"Dedicated server command-line port is invalid. Use {PortArg} {fallbackPort} or {ServerPortArg} {fallbackPort}.";
             return false;
         }
+
+        private ushort ConfiguredDefaultPort => _dedicatedServerConfiguration.NormalizedPort;
 
         private static bool IsDedicatedServerArg(string arg)
         {
@@ -325,13 +339,13 @@ namespace Infrastructure.Services.Network
                 || string.Equals(arg, ServerOnlyArg, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool TryReadPortArg(string[] args, int index, string arg, out ushort port, out bool consumedNext, out string error)
+        private static bool TryReadPortArg(string[] args, int index, string arg, ushort defaultPort, out ushort port, out bool consumedNext, out string error)
         {
-            port = DefaultPort;
+            port = defaultPort;
             consumedNext = false;
             error = null;
 
-            if (TryReadInlinePort(arg, PortArg, out port, out error) || TryReadInlinePort(arg, ServerPortArg, out port, out error))
+            if (TryReadInlinePort(arg, PortArg, defaultPort, out port, out error) || TryReadInlinePort(arg, ServerPortArg, defaultPort, out port, out error))
                 return string.IsNullOrWhiteSpace(error);
 
             if (!string.Equals(arg, PortArg, StringComparison.OrdinalIgnoreCase)
@@ -343,7 +357,7 @@ namespace Infrastructure.Services.Network
             int valueIndex = index + 1;
             if (valueIndex >= args.Length)
             {
-                error = $"Dedicated server command-line port flag '{arg}' is missing a value. Use {arg} {DefaultPort}.";
+                error = $"Dedicated server command-line port flag '{arg}' is missing a value. Use {arg} {defaultPort}.";
                 return false;
             }
 
@@ -358,9 +372,9 @@ namespace Infrastructure.Services.Network
             return true;
         }
 
-        private static bool TryReadInlinePort(string arg, string key, out ushort port, out string error)
+        private static bool TryReadInlinePort(string arg, string key, ushort defaultPort, out ushort port, out string error)
         {
-            port = DefaultPort;
+            port = defaultPort;
             error = null;
             string prefix = key + "=";
             if (!arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
@@ -375,7 +389,11 @@ namespace Infrastructure.Services.Network
         private static bool TryParseCommandLinePort(string value, out ushort port)
         {
             port = DefaultPort;
-            return ushort.TryParse(value, out port) && port != 0;
+            if (!ushort.TryParse(value, out ushort parsedPort) || parsedPort == 0)
+                return false;
+
+            port = parsedPort;
+            return true;
         }
 
         private void Subscribe()

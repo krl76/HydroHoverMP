@@ -1,9 +1,12 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Data.Leaderbords;
 using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using FishNet.Transporting;
+using Newtonsoft.Json;
 using UnityEngine;
 
 namespace Features.Networking
@@ -35,6 +38,28 @@ namespace Features.Networking
         }
     }
 
+
+    [System.Serializable]
+    public struct NetworkLeaderboardRecord
+    {
+        public float Time;
+        public long Date;
+
+        public NetworkLeaderboardRecord(float time, long date)
+        {
+            Time = time;
+            Date = date;
+        }
+
+        public Record ToRecord()
+        {
+            return new Record
+            {
+                Time = Time,
+                Date = Date
+            };
+        }
+    }
     public enum SessionPhase : byte
     {
         Disconnected = 0,
@@ -49,6 +74,7 @@ namespace Features.Networking
     {
         [SerializeField] private int _minimumPlayers = 2;
         [SerializeField] private float _countdownSeconds = 3f;
+        [SerializeField] private string _dedicatedLeaderboardFileName = "dedicated_leaderboard.json";
 
         private readonly Dictionary<int, NetworkPlayerData> _players = new();
         private float _countdownEndsAt;
@@ -60,6 +86,7 @@ namespace Features.Networking
         public readonly SyncVar<int> ReadyPlayers = new(0);
         public readonly SyncVar<float> CountdownRemaining = new(0f);
         public readonly SyncList<NetworkRaceResult> Results = new();
+        public readonly SyncList<NetworkLeaderboardRecord> DedicatedLeaderboardRecords = new();
 
         public IReadOnlyCollection<NetworkPlayerData> Players => _players.Values;
         public int MinimumPlayers => _minimumPlayers;
@@ -79,6 +106,7 @@ namespace Features.Networking
         {
             base.OnStartServer();
             Phase.Value = SessionPhase.Lobby;
+            LoadDedicatedLeaderboardRecords();
             NetworkManager.ServerManager.OnRemoteConnectionState += OnRemoteConnectionState;
         }
 
@@ -162,6 +190,34 @@ namespace Features.Networking
             RefreshResultSnapshots();
             CountdownRemaining.Value = 0f;
             Phase.Value = SessionPhase.Results;
+        }
+
+        public void ServerAddDedicatedLeaderboardRecord(float time)
+        {
+            if (!IsServerInitialized) return;
+            if (time <= 0f) return;
+
+            DedicatedLeaderboardRecords.Add(new NetworkLeaderboardRecord(time, System.DateTime.Now.Ticks));
+            SortDedicatedLeaderboardRecords();
+            SaveDedicatedLeaderboardRecords();
+        }
+
+        public List<Record> GetDedicatedLeaderboardRecords(int count)
+        {
+            return DedicatedLeaderboardRecords
+                .Take(Mathf.Max(0, count))
+                .Select(record => new Record
+                {
+                    Time = record.Time,
+                    Date = record.Date
+                })
+                .ToList();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestDedicatedLeaderboardServerRpc(NetworkConnection sender = null)
+        {
+            if (!IsServerInitialized) return;
         }
 
         private void ServerStartCountdown(bool forceStart)
@@ -328,5 +384,55 @@ namespace Features.Networking
 
             return -1;
         }
+
+        private void SortDedicatedLeaderboardRecords()
+        {
+            List<NetworkLeaderboardRecord> orderedRecords = DedicatedLeaderboardRecords
+                .OrderBy(record => record.Time)
+                .ThenBy(record => record.Date)
+                .ToList();
+
+            DedicatedLeaderboardRecords.Clear();
+            foreach (NetworkLeaderboardRecord record in orderedRecords)
+                DedicatedLeaderboardRecords.Add(record);
+        }
+
+        private void LoadDedicatedLeaderboardRecords()
+        {
+            DedicatedLeaderboardRecords.Clear();
+            string path = GetDedicatedLeaderboardPath();
+            if (!File.Exists(path)) return;
+
+            string json = File.ReadAllText(path);
+            LeaderboardData data = JsonConvert.DeserializeObject<LeaderboardData>(json) ?? new LeaderboardData();
+            foreach (Record record in data.Records.OrderBy(record => record.Time).ThenBy(record => record.Date))
+                DedicatedLeaderboardRecords.Add(new NetworkLeaderboardRecord(record.Time, record.Date));
+        }
+
+        private void SaveDedicatedLeaderboardRecords()
+        {
+            LeaderboardData data = new()
+            {
+                Records = DedicatedLeaderboardRecords
+                    .Select(record => record.ToRecord())
+                    .OrderBy(record => record.Time)
+                    .ThenBy(record => record.Date)
+                    .ToList()
+            };
+
+            string json = JsonConvert.SerializeObject(data, Formatting.Indented);
+            File.WriteAllText(GetDedicatedLeaderboardPath(), json);
+        }
+
+        private string GetDedicatedLeaderboardPath()
+        {
+            string fileName = string.IsNullOrWhiteSpace(_dedicatedLeaderboardFileName)
+                ? "dedicated_leaderboard.json"
+                : _dedicatedLeaderboardFileName.Trim();
+
+            return Path.Combine(Application.persistentDataPath, fileName);
+        }
     }
 }
+
+

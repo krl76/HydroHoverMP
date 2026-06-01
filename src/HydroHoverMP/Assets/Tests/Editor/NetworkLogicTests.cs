@@ -54,6 +54,26 @@ namespace HydroHoverMP.Tests.Editor
         }
 
         [Test]
+        public void NetworkPlayerPreferences_UsesConfiguredDedicatedServerDefaultsWhenNoSavedValuesExist()
+        {
+            Assert.That(NetworkPlayerPreferences.GetAddress("  dedicated.example.com  "), Is.EqualTo("dedicated.example.com"));
+            Assert.That(NetworkPlayerPreferences.GetPort(7788), Is.EqualTo((ushort)7788));
+        }
+
+        [Test]
+        public void DedicatedServerConfiguration_NormalizesMissingValues()
+        {
+            var configuration = new DedicatedServerConfiguration
+            {
+                Address = "   ",
+                Port = 0
+            };
+
+            Assert.That(configuration.NormalizedAddress, Is.EqualTo("localhost"));
+            Assert.That(configuration.NormalizedPort, Is.EqualTo((ushort)7770));
+        }
+
+        [Test]
         public void NetworkConnectionService_CommandLinePortParsingSupportsDedicatedServerForms()
         {
             bool validInline = NetworkTestUtilities.InvokeTryGetCommandLineServerPort(new[] { "-dedicatedServer", "-port=7777" }, out ushort inlinePort, out string inlineError);

@@ -13,8 +13,6 @@ namespace UI.MainMenu
 {
     public class MainMenuWindow : MonoBehaviour
     {
-        private const ushort DefaultPort = 7770;
-
         private enum ConnectionMode
         {
             None,
@@ -24,6 +22,7 @@ namespace UI.MainMenu
 
         [Header("Existing menu buttons")]
         [SerializeField] private Button _playButton;
+        [SerializeField] private Button _clientButton;
         [SerializeField] private Button _leaderboardButton;
         [SerializeField] private Button _settingsButton;
         [SerializeField] private Button _exitButton;
@@ -33,26 +32,27 @@ namespace UI.MainMenu
         [SerializeField] private TextMeshProUGUI _statusText;
         [SerializeField] private TextMeshProUGUI _modeTitleText;
 
-        [Header("Network defaults")]
-        [SerializeField] private string _defaultAddress = "localhost";
-        [SerializeField] private int _defaultPort = DefaultPort;
+        [Header("Network preferences")]
         [SerializeField] private bool _preferSavedConnectionPreferences;
 
         private IWindowService _windowService;
         private INetworkConnectionService _connectionService;
+        private DedicatedServerConfiguration _dedicatedServerConfiguration;
         private ConnectionMode _mode;
         private Vector2 _playStartPosition;
         private Vector2 _clientStartPosition;
+        private Vector2 _leaderboardStartPosition;
         private Vector2 _settingsStartPosition;
         private Vector2 _exitStartPosition;
         private float _nextRefreshTime;
         private string _lastConnectionFailure;
 
         [Inject]
-        public void Construct(IWindowService windowService, INetworkConnectionService connectionService)
+        public void Construct(IWindowService windowService, INetworkConnectionService connectionService, DedicatedServerConfiguration dedicatedServerConfiguration)
         {
             _windowService = windowService;
             _connectionService = connectionService;
+            _dedicatedServerConfiguration = dedicatedServerConfiguration;
         }
 
         private void Start()
@@ -88,6 +88,7 @@ namespace UI.MainMenu
         private void ConfigureButtonsForRootMenu()
         {
             ClearButtonListeners(_playButton);
+            ClearButtonListeners(_clientButton);
             ClearButtonListeners(_leaderboardButton);
             ClearButtonListeners(_settingsButton);
             ClearButtonListeners(_exitButton);
@@ -95,8 +96,11 @@ namespace UI.MainMenu
             if (_playButton != null)
                 _playButton.onClick.AddListener(() => ShowConnectionForm(ConnectionMode.Host));
 
+            if (_clientButton != null)
+                _clientButton.onClick.AddListener(() => ShowConnectionForm(ConnectionMode.Client));
+
             if (_leaderboardButton != null)
-                _leaderboardButton.onClick.AddListener(() => ShowConnectionForm(ConnectionMode.Client));
+                _leaderboardButton.onClick.AddListener(Leaderboard);
 
             if (_settingsButton != null)
                 _settingsButton.onClick.AddListener(Settings);
@@ -113,13 +117,13 @@ namespace UI.MainMenu
         private void ConfigureButtonsForForm(ConnectionMode mode)
         {
             ClearButtonListeners(_playButton);
-            ClearButtonListeners(_leaderboardButton);
+            ClearButtonListeners(_clientButton);
 
             if (_playButton != null)
                 _playButton.onClick.AddListener(mode == ConnectionMode.Host ? StartHostFromMenu : StartClientFromMenu);
 
-            if (_leaderboardButton != null)
-                _leaderboardButton.onClick.AddListener(ShowRootMenu);
+            if (_clientButton != null)
+                _clientButton.onClick.AddListener(ShowRootMenu);
         }
 
         private void ShowRootMenu()
@@ -128,11 +132,13 @@ namespace UI.MainMenu
 
             RestoreButtonPositions();
             SetButtonLabel(_playButton, "Host");
-            SetButtonLabel(_leaderboardButton, "Client");
+            SetButtonLabel(_clientButton, "Client");
+            SetButtonLabel(_leaderboardButton, "Leaderboard");
             SetButtonLabel(_settingsButton, "Settings");
             SetButtonLabel(_exitButton, "Exit");
 
             SetButtonActive(_playButton, true);
+            SetButtonActive(_clientButton, true);
             SetButtonActive(_leaderboardButton, true);
             SetButtonActive(_settingsButton, true);
             SetButtonActive(_exitButton, true);
@@ -148,12 +154,13 @@ namespace UI.MainMenu
             SetFormActive(true);
 
             SetButtonLabel(_playButton, mode == ConnectionMode.Host ? "Start" : "Connect");
-            SetButtonLabel(_leaderboardButton, "Back");
+            SetButtonLabel(_clientButton, "Back");
+            SetButtonActive(_leaderboardButton, false);
             SetButtonActive(_settingsButton, false);
             SetButtonActive(_exitButton, false);
 
             MoveButton(_playButton, new Vector2(0f, -42f));
-            MoveButton(_leaderboardButton, new Vector2(0f, -126f));
+            MoveButton(_clientButton, new Vector2(0f, -126f));
 
             if (_modeTitleText != null)
                 _modeTitleText.text = mode == ConnectionMode.Host ? "HOST SESSION" : "JOIN SESSION";
@@ -226,7 +233,10 @@ namespace UI.MainMenu
 
         private bool TryGetConnectionPort(out ushort port)
         {
-            int configuredPort = _preferSavedConnectionPreferences ? NetworkPlayerPreferences.GetPort() : _defaultPort;
+            ushort defaultPort = _dedicatedServerConfiguration?.NormalizedPort ?? DedicatedServerConfiguration.DefaultPort;
+            int configuredPort = _preferSavedConnectionPreferences
+                ? NetworkPlayerPreferences.GetPort(defaultPort)
+                : defaultPort;
             if (configuredPort is > 0 and <= ushort.MaxValue)
             {
                 port = (ushort)configuredPort;
@@ -234,15 +244,16 @@ namespace UI.MainMenu
             }
 
             port = 0;
-            SetStatus($"Configured port is invalid. Set a number from 1 to {ushort.MaxValue} in the MainMenu inspector.", true);
+            SetStatus($"Configured port is invalid. Set a number from 1 to {ushort.MaxValue} in the GlobalInstaller dedicated server config.", true);
             return false;
         }
 
         private string ResolveConnectionAddress()
         {
+            string defaultAddress = _dedicatedServerConfiguration?.NormalizedAddress ?? DedicatedServerConfiguration.DefaultAddress;
             return _preferSavedConnectionPreferences
-                ? NormalizeAddress(NetworkPlayerPreferences.GetAddress())
-                : NormalizeAddress(_defaultAddress);
+                ? NormalizeAddress(NetworkPlayerPreferences.GetAddress(defaultAddress))
+                : NormalizeAddress(defaultAddress);
         }
 
         private void OnConnectionStatusChanged(NetworkConnectionStatus status)
@@ -276,14 +287,14 @@ namespace UI.MainMenu
 
             if (_mode == ConnectionMode.None)
             {
-                if (_leaderboardButton != null)
-                    _leaderboardButton.interactable = canStart;
+                if (_clientButton != null)
+                    _clientButton.interactable = canStart;
 
                 return;
             }
 
-            if (_leaderboardButton != null)
-                _leaderboardButton.interactable = true;
+            if (_clientButton != null)
+                _clientButton.interactable = true;
 
             string statusLine = status switch
             {
@@ -330,6 +341,12 @@ namespace UI.MainMenu
             _windowService.Close(WindowID.MainMenu);
         }
 
+        private void Leaderboard()
+        {
+            _windowService.Open(WindowID.Leaderboard);
+            _windowService.Close(WindowID.MainMenu);
+        }
+
         private void SetFormActive(bool active)
         {
             if (_modeTitleText != null) _modeTitleText.gameObject.SetActive(active);
@@ -349,7 +366,8 @@ namespace UI.MainMenu
         private void CacheButtonPositions()
         {
             _playStartPosition = GetButtonPosition(_playButton);
-            _clientStartPosition = GetButtonPosition(_leaderboardButton);
+            _clientStartPosition = GetButtonPosition(_clientButton);
+            _leaderboardStartPosition = GetButtonPosition(_leaderboardButton);
             _settingsStartPosition = GetButtonPosition(_settingsButton);
             _exitStartPosition = GetButtonPosition(_exitButton);
         }
@@ -357,7 +375,8 @@ namespace UI.MainMenu
         private void RestoreButtonPositions()
         {
             MoveButton(_playButton, _playStartPosition);
-            MoveButton(_leaderboardButton, _clientStartPosition);
+            MoveButton(_clientButton, _clientStartPosition);
+            MoveButton(_leaderboardButton, _leaderboardStartPosition);
             MoveButton(_settingsButton, _settingsStartPosition);
             MoveButton(_exitButton, _exitStartPosition);
         }
