@@ -20,6 +20,11 @@ namespace Features.Networking
     public sealed class AddressablesSceneProcessor : DefaultSceneProcessor
     {
         private const string AddressPrefix = "Scene/";
+
+        // Allow-list of scenes that exist as Addressables. Only "Gameplay" is actually
+        // routed through FishNet's networked SceneManager today; "Level"/"MainMenu" load
+        // via their own loaders, and are listed here only defensively in case one is ever
+        // promoted to a networked scene.
         private static readonly HashSet<string> AddressableSceneNames = new() { "Gameplay", "Level", "MainMenu" };
 
         private readonly List<AsyncOperationHandle<SceneInstance>> _loadingHandles = new();
@@ -180,7 +185,18 @@ namespace Features.Networking
                 foreach (AsyncOperationHandle<SceneInstance> handle in _loadingHandles)
                 {
                     if (!handle.IsValid()) continue;
-                    if (handle.Status != AsyncOperationStatus.Succeeded || !handle.Result.Scene.isLoaded)
+
+                    // Still loading -> keep waiting.
+                    if (!handle.IsDone)
+                    {
+                        notDone = true;
+                        break;
+                    }
+
+                    // Loaded but activation not finished yet -> keep waiting. A Failed handle
+                    // is already IsDone (error logged in BeginLoadAsync) and must be treated as
+                    // done here, otherwise a missing/corrupt bundle would hang the load forever.
+                    if (handle.Status == AsyncOperationStatus.Succeeded && !handle.Result.Scene.isLoaded)
                     {
                         notDone = true;
                         break;
@@ -191,16 +207,15 @@ namespace Features.Networking
             } while (notDone);
         }
 
-        // Releases an Addressables handle when the scene is unloaded outside our
-        // BeginUnloadAsync (e.g. a single-mode load of the offline Bootstrap scene
-        // tears Gameplay down via Unity directly). Prevents ref-count leaks.
+        // Forgets the tracked handle when the scene is unloaded outside our BeginUnloadAsync
+        // (e.g. a single-mode load of the offline Bootstrap scene tears Gameplay down via
+        // Unity directly). Addressables already auto-releases the scene handle on scene
+        // unload (default SceneReleaseMode.ReleaseSceneWhenSceneUnloaded), so we must NOT
+        // release again here — releasing twice would over-decrement the ref count. We only
+        // drop the stale map entry to avoid unloading an already-released handle later.
         private void OnSceneUnloadedExternally(UnityScene scene)
         {
-            if (!_sceneHandles.TryGetValue(scene, out AsyncOperationHandle<SceneInstance> handle)) return;
-
             _sceneHandles.Remove(scene);
-            if (handle.IsValid())
-                Addressables.Release(handle);
         }
     }
 }

@@ -279,10 +279,14 @@ namespace Infrastructure.Services.Network
                 string arg = args[i];
                 if (string.IsNullOrWhiteSpace(arg)) continue;
 
-                if (TryReadPortArg(args, i, arg, port, out ushort parsedPort, out bool consumedNext, out _))
+                if (TryReadPortArg(args, i, arg, port, out ushort parsedPort, out bool consumedNext, out string portError))
                 {
                     port = parsedPort;
                     if (consumedNext) i++;
+                }
+                else if (!string.IsNullOrWhiteSpace(portError))
+                {
+                    Debug.LogError($"[NetworkConnectionService] {portError} Falling back to port {port}.");
                 }
             }
 
