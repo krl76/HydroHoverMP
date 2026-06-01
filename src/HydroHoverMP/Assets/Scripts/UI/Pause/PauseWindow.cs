@@ -41,7 +41,8 @@ namespace UI.Pause
         private void Start()
         {
             _resumeButton.onClick.AddListener(Resume);
-            _restartButton.onClick.AddListener(RestartRace);
+            if (_restartButton != null)
+                _restartButton.gameObject.SetActive(false); // Restart removed (multiplayer-only); use R to respawn at last checkpoint.
             _settingsButton.onClick.AddListener(OpenSettings);
             _menuButton.onClick.AddListener(GoToMenu);
         }
@@ -50,15 +51,6 @@ namespace UI.Pause
         {
             Time.timeScale = 1f;
             _windowService.Close(WindowID.Pause);
-        }
-
-        private void RestartRace()
-        {
-            Time.timeScale = 1f;
-            
-            _windowService.Close(WindowID.Pause);
-            
-            _stateMachine.Enter<LoadLevelState, string>(ScenesPaths.GAMEPLAY);
         }
 
         private void OpenSettings()

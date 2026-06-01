@@ -10,6 +10,7 @@ namespace Infrastructure.Services.Input
         float LiftInput { get; }
         bool HandbrakeInput { get; }
         bool HydroPulsePressed { get; }
+        bool RespawnPressed { get; }
 
         float SensitivityMultiplier { get; set; }
         

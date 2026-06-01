@@ -137,6 +137,7 @@ GameObject:
   - component: {fileID: 313867022365787619}
   - component: {fileID: 1769908396771844597}
   - component: {fileID: 7365051112825194063}
+  - component: {fileID: 7021086196128313474}
   m_Layer: 0
   m_Name: HoverCraft
   m_TagString: Player
@@ -552,6 +553,23 @@ MonoBehaviour:
   _remoteColor: {r: 1, g: 1, b: 1, a: 1}
   _readyColor: {r: 0.57, g: 1, b: 0.67, a: 1}
   _damagedColor: {r: 1, g: 0.68, b: 0.34, a: 1}
+--- !u!114 &7021086196128313474
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 372718540943529084}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb5e17e7c99e65747aa2eac56b37051e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Features.Networking.HoverRespawnController
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 3471023219187425857}
+  _networkObjectCache: {fileID: 0}
+  _respawnCooldown: 1
+  _uprightLift: 0.5
 --- !u!1 &1043666725274324933
 GameObject:
   m_ObjectHideFlags: 0

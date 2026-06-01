@@ -19,6 +19,7 @@ namespace Infrastructure.Services.RaceManager
         event Action OnWrongCheckpoint;
         
         void RegisterTrack(List<CheckpointTrigger> checkpoints);
+        bool TryGetCheckpointPose(int index, out Vector3 position, out Quaternion rotation);
         void StartRace();
         void FinishRace();
     }

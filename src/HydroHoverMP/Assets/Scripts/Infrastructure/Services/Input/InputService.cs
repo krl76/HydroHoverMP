@@ -15,6 +15,7 @@ namespace Infrastructure.Services.Input
         public float LiftInput => _controls.Player.Lift.ReadValue<float>();
         public bool HandbrakeInput => _controls.Player.Handbrake.IsPressed();
         public bool HydroPulsePressed => Keyboard.current != null && Keyboard.current.leftShiftKey.wasPressedThisFrame;
+        public bool RespawnPressed => Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
 
         public float SensitivityMultiplier { get; set; } = 1.0f;
 

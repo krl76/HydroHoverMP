@@ -58,6 +58,21 @@ namespace Infrastructure.Services.RaceManager
             Debug.Log($"[RaceService] Track registered: {_checkpoints.Count} checkpoints.");
         }
 
+        public bool TryGetCheckpointPose(int index, out Vector3 position, out Quaternion rotation)
+        {
+            if (_checkpoints != null && index >= 0 && index < _checkpoints.Count && _checkpoints[index] != null)
+            {
+                Transform t = _checkpoints[index].transform;
+                position = t.position;
+                rotation = t.rotation;
+                return true;
+            }
+
+            position = Vector3.zero;
+            rotation = Quaternion.identity;
+            return false;
+        }
+
         public void StartRace()
         {
             if (_checkpoints.Count == 0)
