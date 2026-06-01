@@ -1,6 +1,6 @@
-﻿using Core.States.Base;
+using Core.States.Base;
 using Core.States.MainMenu;
-using Data;
+using Infrastructure.Services.Network;
 
 namespace Core.States.Core
 {
@@ -15,7 +15,10 @@ namespace Core.States.Core
 
         public void Enter()
         {
-            _stateMachine.Enter<MainMenuState>();
+            if (ServerEnvironment.IsDedicatedServer)
+                _stateMachine.Enter<ServerBootstrapState>();
+            else
+                _stateMachine.Enter<MainMenuState>();
         }
 
         public void Exit()

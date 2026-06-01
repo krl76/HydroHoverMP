@@ -45,7 +45,6 @@ namespace Infrastructure.Services.Network
         public void Initialize()
         {
             TryBindNetworkManager();
-            TryStartServerFromCommandLine();
         }
 
         public void Dispose()
@@ -269,18 +268,25 @@ namespace Infrastructure.Services.Network
             return false;
         }
 
-        private void TryStartServerFromCommandLine()
+        public ushort ResolveServerPort()
         {
             string[] args = Environment.GetCommandLineArgs();
-            if (!TryGetCommandLineServerPortWithDefault(args, ConfiguredDefaultPort, out ushort port, out string error))
+            ushort port = ConfiguredDefaultPort;
+            if (args == null) return port;
+
+            for (int i = 0; i < args.Length; i++)
             {
-                if (!string.IsNullOrWhiteSpace(error))
-                    Debug.LogError($"[NetworkConnectionService] {error}");
-                return;
+                string arg = args[i];
+                if (string.IsNullOrWhiteSpace(arg)) continue;
+
+                if (TryReadPortArg(args, i, arg, port, out ushort parsedPort, out bool consumedNext, out _))
+                {
+                    port = parsedPort;
+                    if (consumedNext) i++;
+                }
             }
 
-            Debug.Log($"[NetworkConnectionService] Command-line dedicated server start requested on port {port}.");
-            StartServer(port);
+            return port;
         }
 
         private static bool TryGetCommandLineServerPort(string[] args, out ushort port, out string error)

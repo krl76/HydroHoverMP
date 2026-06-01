@@ -17,6 +17,7 @@ namespace Infrastructure.Services.Network
         bool StartHost(ushort port = 7770);
         bool StartClient(string address, ushort port = 7770);
         bool StartServer(ushort port = 7770);
+        ushort ResolveServerPort();
         void StopConnection();
         void RefreshStatus();
     }
