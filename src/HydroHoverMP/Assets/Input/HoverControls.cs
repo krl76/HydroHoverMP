@@ -127,6 +127,24 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Respawn"",
+                    ""type"": ""Button"",
+                    ""id"": ""b1f4a2c0-1111-4a2b-9c3d-0a1b2c3d4e5f"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""HydroPulse"",
+                    ""type"": ""Button"",
+                    ""id"": ""a3d6c4e2-3333-4c4d-9e5f-2b3c4d5e6f70"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -239,6 +257,28 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
                     ""action"": ""Pause"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""c2e5b3d1-2222-4b3c-8d4e-1f2a3b4c5d6e"",
+                    ""path"": ""<Keyboard>/r"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Respawn"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""d4f6c5e3-4444-4d5e-8f60-3a4b5c6d7e8f"",
+                    ""path"": ""<Keyboard>/leftShift"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""HydroPulse"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -251,6 +291,8 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
         m_Player_Lift = m_Player.FindAction("Lift", throwIfNotFound: true);
         m_Player_Handbrake = m_Player.FindAction("Handbrake", throwIfNotFound: true);
         m_Player_Pause = m_Player.FindAction("Pause", throwIfNotFound: true);
+        m_Player_Respawn = m_Player.FindAction("Respawn", throwIfNotFound: true);
+        m_Player_HydroPulse = m_Player.FindAction("HydroPulse", throwIfNotFound: true);
     }
 
     ~@HoverControls()
@@ -335,6 +377,8 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Lift;
     private readonly InputAction m_Player_Handbrake;
     private readonly InputAction m_Player_Pause;
+    private readonly InputAction m_Player_Respawn;
+    private readonly InputAction m_Player_HydroPulse;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -362,6 +406,14 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/Pause".
         /// </summary>
         public InputAction @Pause => m_Wrapper.m_Player_Pause;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/Respawn".
+        /// </summary>
+        public InputAction @Respawn => m_Wrapper.m_Player_Respawn;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/HydroPulse".
+        /// </summary>
+        public InputAction @HydroPulse => m_Wrapper.m_Player_HydroPulse;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -400,6 +452,12 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
             @Pause.started += instance.OnPause;
             @Pause.performed += instance.OnPause;
             @Pause.canceled += instance.OnPause;
+            @Respawn.started += instance.OnRespawn;
+            @Respawn.performed += instance.OnRespawn;
+            @Respawn.canceled += instance.OnRespawn;
+            @HydroPulse.started += instance.OnHydroPulse;
+            @HydroPulse.performed += instance.OnHydroPulse;
+            @HydroPulse.canceled += instance.OnHydroPulse;
         }
 
         /// <summary>
@@ -423,6 +481,12 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
             @Pause.started -= instance.OnPause;
             @Pause.performed -= instance.OnPause;
             @Pause.canceled -= instance.OnPause;
+            @Respawn.started -= instance.OnRespawn;
+            @Respawn.performed -= instance.OnRespawn;
+            @Respawn.canceled -= instance.OnRespawn;
+            @HydroPulse.started -= instance.OnHydroPulse;
+            @HydroPulse.performed -= instance.OnHydroPulse;
+            @HydroPulse.canceled -= instance.OnHydroPulse;
         }
 
         /// <summary>
@@ -491,5 +555,19 @@ public partial class @HoverControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnPause(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Respawn" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnRespawn(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "HydroPulse" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnHydroPulse(InputAction.CallbackContext context);
     }
 }
