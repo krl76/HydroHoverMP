@@ -38,7 +38,7 @@ namespace HydroHoverMP.Editor.Networking
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[HydroHoverMP] FishNet setup applied. Verify in Inspector: NetworkManager > SceneManager._sceneProcessor = AddressablesSceneProcessor; Build Settings scene list = Bootstrap only. Then test Host + Client.");
+            Debug.Log("[HydroHoverMP] FishNet setup applied. Build Settings = Bootstrap + Gameplay + Level (MainMenu loads via Addressables). Networked scenes load by name. Test Host + Client.");
         }
 
         [MenuItem("HydroHoverMP/Networking/Apply Multiplayer Start And Spawns")]
@@ -283,10 +283,15 @@ namespace HydroHoverMP.Editor.Networking
 
         private static void ConfigureBuildSettings()
         {
-            // Bootstrap-only build: MainMenu/Gameplay/Level load via Addressables.
+            // Hybrid scene loading: FishNet's networked Gameplay scene and the locally
+            // additive-loaded Level load BY NAME from Build Settings (FishNet's native,
+            // reliable path). MainMenu loads via Addressables, so it is intentionally
+            // NOT in the build list.
             EditorBuildSettings.scenes = new[]
             {
-                new EditorBuildSettingsScene(BootstrapScenePath, true)
+                new EditorBuildSettingsScene(BootstrapScenePath, true),
+                new EditorBuildSettingsScene(GameplayScenePath, true),
+                new EditorBuildSettingsScene(LevelScenePath, true)
             };
         }
 
@@ -312,13 +317,6 @@ namespace HydroHoverMP.Editor.Networking
                 .LoadAssetAtPath<GameObject>(PlayerPrefabPath)
                 .GetComponent<NetworkObject>();
             spawner.SetPlayerPrefab(playerPrefab);
-
-            AddressablesSceneProcessor sceneProcessor = AddIfMissing<AddressablesSceneProcessor>(networkObject);
-            FishNet.Managing.Scened.SceneManager fishnetSceneManager = AddIfMissing<FishNet.Managing.Scened.SceneManager>(networkObject);
-            SerializedObject serializedSceneManager = new(fishnetSceneManager);
-            SerializedProperty processorProperty = serializedSceneManager.FindProperty("_sceneProcessor");
-            processorProperty.objectReferenceValue = sceneProcessor;
-            serializedSceneManager.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);

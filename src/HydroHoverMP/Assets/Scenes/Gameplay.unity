@@ -310,7 +310,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 54a0e53483df05c49992aafeb45ed33d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Features.Networking.NetworkLevelAdditiveLoader
-  _levelSceneAddress: Scene/Level
   _levelSceneName: Level
 --- !u!114 &127359150
 MonoBehaviour:

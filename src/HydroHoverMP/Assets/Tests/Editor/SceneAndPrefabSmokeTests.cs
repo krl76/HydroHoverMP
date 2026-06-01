@@ -64,39 +64,19 @@ namespace HydroHoverMP.Tests.Editor
         }
 
         [Test]
-        public void BootstrapScene_NetworkManagerUsesAddressablesSceneProcessor()
-        {
-            Scene scene = EditorSceneManager.OpenScene(BootstrapScenePath, OpenSceneMode.Additive);
-            try
-            {
-                GameObject networkObject = scene.GetRootGameObjects()
-                    .FirstOrDefault(root => root.name == "FishNet NetworkManager");
-
-                Assert.That(networkObject, Is.Not.Null, "Bootstrap should contain the FishNet network root object.");
-                Assert.That(networkObject.GetComponent<Features.Networking.AddressablesSceneProcessor>(), Is.Not.Null,
-                    "NetworkManager should carry the AddressablesSceneProcessor component.");
-
-                FishNet.Managing.Scened.SceneManager sceneManager = networkObject.GetComponent<FishNet.Managing.Scened.SceneManager>();
-                Assert.That(sceneManager, Is.Not.Null, "NetworkManager should have a FishNet SceneManager.");
-                Assert.That(sceneManager.GetSceneProcessor(), Is.InstanceOf<Features.Networking.AddressablesSceneProcessor>(),
-                    "SceneManager._sceneProcessor must be wired to AddressablesSceneProcessor.");
-            }
-            finally
-            {
-                EditorSceneManager.CloseScene(scene, true);
-            }
-        }
-
-        [Test]
-        public void BuildSettings_ContainOnlyBootstrapScene()
+        public void BuildSettings_ContainNetworkedScenes()
         {
             string[] enabledScenePaths = EditorBuildSettings.scenes
                 .Where(s => s.enabled)
                 .Select(s => s.path)
                 .ToArray();
 
-            Assert.That(enabledScenePaths, Is.EqualTo(new[] { "Assets/Scenes/Bootstrap.unity" }),
-                "Only Bootstrap should be in the Build Settings scene list; other scenes load via Addressables.");
+            Assert.That(enabledScenePaths, Is.EqualTo(new[]
+            {
+                "Assets/Scenes/Bootstrap.unity",
+                "Assets/Scenes/Gameplay.unity",
+                "Assets/Scenes/Level.unity"
+            }), "Networked scenes (Bootstrap/Gameplay/Level) must be in Build Settings; MainMenu loads via Addressables.");
         }
     }
 }
