@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using Infrastructure.Services.Network;
+using UnityEngine;
 using Zenject;
 
 namespace Physics.Water
@@ -31,7 +32,10 @@ namespace Physics.Water
         private void UpdateShaderGlobals()
         {
             if (_settings == null) return;
-        
+            // Глобалы шейдеров — чисто визуальная часть. На headless-сервере шейдеры вырезаны
+            // (Dedicated Server Optimizations), а физике (GetWaterHeightAt) они не нужны.
+            if (ServerEnvironment.IsDedicatedServer) return;
+
             float finalAmp1 = _settings.Amplitude1 * _amplitudeMultiplier;
             float finalAmp2 = _settings.Amplitude2 * _amplitudeMultiplier;
         
