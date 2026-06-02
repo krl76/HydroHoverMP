@@ -23,6 +23,8 @@ namespace Infrastructure.Installers
         [Header("Dedicated Server")]
         [SerializeField] private string _dedicatedServerAddress = DedicatedServerConfiguration.DefaultAddress;
         [SerializeField] private ushort _dedicatedServerPort = DedicatedServerConfiguration.DefaultPort;
+        [Tooltip("Игра использует выделенный сервер: на клиенте кнопка Host отключается (доступен только Client).")]
+        [SerializeField] private bool _dedicatedServerOnly;
 
         public override void InstallBindings()
         {
@@ -67,7 +69,8 @@ namespace Infrastructure.Installers
                 Address = _dedicatedServerAddress,
                 Port = _dedicatedServerPort == 0
                     ? DedicatedServerConfiguration.DefaultPort
-                    : _dedicatedServerPort
+                    : _dedicatedServerPort,
+                DedicatedServerOnly = _dedicatedServerOnly
             };
         }
 

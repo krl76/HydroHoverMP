@@ -272,6 +272,10 @@ namespace UI.MainMenu
             RefreshConnectionUi();
         }
 
+        // Хостинг разрешён, пока конфиг не помечен как «только выделенный сервер».
+        private bool HostingEnabled =>
+            _dedicatedServerConfiguration == null || !_dedicatedServerConfiguration.DedicatedServerOnly;
+
         private void RefreshConnectionUi()
         {
             if (_connectionService == null)
@@ -283,7 +287,8 @@ namespace UI.MainMenu
             NetworkConnectionStatus status = _connectionService.Status;
             bool canStart = status is NetworkConnectionStatus.Offline or NetworkConnectionStatus.Failed;
             if (_playButton != null)
-                _playButton.interactable = canStart;
+                // В режиме dedicated server кнопка Host (_playButton в корневом меню) отключается.
+                _playButton.interactable = canStart && (_mode != ConnectionMode.None || HostingEnabled);
 
             if (_mode == ConnectionMode.None)
             {

@@ -11,6 +11,10 @@ namespace Infrastructure.Services.Network
         public string Address = DefaultAddress;
         public ushort Port = DefaultPort;
 
+        // Когда true — игра рассчитана на выделенный сервер: на клиенте доступен только Client (join),
+        // а кнопка Host в главном меню отключается.
+        public bool DedicatedServerOnly;
+
         public string NormalizedAddress => string.IsNullOrWhiteSpace(Address)
             ? DefaultAddress
             : Address.Trim();
