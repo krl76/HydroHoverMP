@@ -25,6 +25,8 @@ namespace Features.Networking
         [SerializeField] private float _remoteOffsetSharpness = 2f;
         [SerializeField] private float _remoteTiltSharpness = 6f;
         [SerializeField] private float _remoteSampleDistance = 1.5f;
+        [Tooltip("Extra lift (metres) added to the remote boat's resting height so it doesn't appear to sink. Tune until the remote waterline matches the local boat.")]
+        [SerializeField] private float _remoteHeightBias = 0.25f;
 
         private bool _remoteVisualFloatActive;
         private bool _remoteFloatInitialized;
@@ -216,7 +218,7 @@ namespace Features.Networking
             // Horizontal position + heading stay as NetworkTransform interpolated them; the
             // vertical bob rides the SMOOTH local wave surface at the owner's average height,
             // and tilt is aligned to the local surface normal. Both are jitter-free locally.
-            float smoothY = centerHeight + _smoothWaterOffset;
+            float smoothY = centerHeight + _smoothWaterOffset + _remoteHeightBias;
             Quaternion tilt = Quaternion.FromToRotation(Vector3.up, _smoothFloatNormal);
             Quaternion finalRotation = tilt * Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
             transform.SetPositionAndRotation(new Vector3(position.x, smoothY, position.z), finalRotation);
