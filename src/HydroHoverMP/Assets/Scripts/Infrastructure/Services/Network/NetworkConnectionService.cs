@@ -1,7 +1,9 @@
 using System;
 using System.Net;
+using Data;
 using FishNet;
 using FishNet.Managing;
+using FishNet.Managing.Scened;
 using FishNet.Transporting;
 using UnityEngine;
 using Zenject;
@@ -22,6 +24,7 @@ namespace Infrastructure.Services.Network
         private bool _subscribed;
         private bool _stopRequested;
         private bool _clientStartRequested;
+        private bool _gameplayGlobalSceneLoaded;
         private NetworkConnectionStatus _status = NetworkConnectionStatus.Offline;
 
         public NetworkConnectionStatus Status => _status;
@@ -454,6 +457,7 @@ namespace Infrastructure.Services.Network
             if (args.ConnectionState == LocalConnectionState.Started)
             {
                 _stopRequested = false;
+                LoadGameplayGlobalSceneOnce();
                 if (_clientStartRequested)
                     SetStatus(NetworkConnectionStatus.StartingHost);
                 else
@@ -461,11 +465,29 @@ namespace Infrastructure.Services.Network
             }
             else if (args.ConnectionState == LocalConnectionState.Stopped)
             {
+                _gameplayGlobalSceneLoaded = false;
                 RefreshStatus();
                 _stopRequested = false;
             }
             else if (args.ConnectionState == LocalConnectionState.Starting)
                 SetStatus(_clientStartRequested ? NetworkConnectionStatus.StartingHost : NetworkConnectionStatus.StartingServer);
+        }
+
+        // Берём на себя загрузку сетевой online-сцены. Раньше это делал FishNet DefaultScene, но он же
+        // перезагружал offline-сцену (Bootstrap) при смене состояния, повторно запуская весь бутстрап и
+        // загружая Gameplay второй раз. DefaultScene отключён в NetworkBootstrapper, а здесь грузим Gameplay
+        // как глобальную сцену ровно один раз — подключающиеся клиенты получают её автоматически.
+        private void LoadGameplayGlobalSceneOnce()
+        {
+            if (_gameplayGlobalSceneLoaded) return;
+            if (_networkManager == null || _networkManager.SceneManager == null) return;
+            // Один сервер уже стартовал (callback пришёл), грузим один раз — как делал DefaultScene.
+            if (!_networkManager.ServerManager.IsOnlyOneServerStarted()) return;
+
+            _gameplayGlobalSceneLoaded = true;
+            SceneLoadData sceneLoadData = new(ScenesPaths.GAMEPLAY_SCENE);
+            _networkManager.SceneManager.LoadGlobalScenes(sceneLoadData);
+            Debug.Log($"[NetworkConnectionService] Loading global scene '{ScenesPaths.GAMEPLAY_SCENE}' on server start.");
         }
 
         private void OnRemoteConnectionState(FishNet.Connection.NetworkConnection connection, RemoteConnectionStateArgs args)
