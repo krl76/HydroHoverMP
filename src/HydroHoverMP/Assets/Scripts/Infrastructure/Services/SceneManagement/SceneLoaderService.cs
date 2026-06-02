@@ -18,6 +18,7 @@ namespace Infrastructure.Services.SceneManagement
 
         public async void LoadScene(string sceneAddress, Action onLoaded = null)
         {
+            UnityEngine.Debug.Log($"[SceneDiag][Addr] LoadScene(Single) address='{sceneAddress}' frame={UnityEngine.Time.frameCount}");
             await LoadSceneAsync(sceneAddress, onLoaded);
         }
 
@@ -47,6 +48,7 @@ namespace Infrastructure.Services.SceneManagement
         
         public async void LoadSceneAdditive(string sceneAddress)
         {
+            UnityEngine.Debug.Log($"[SceneDiag][Addr] LoadSceneAdditive address='{sceneAddress}' frame={UnityEngine.Time.frameCount}");
             await Addressables.LoadSceneAsync(sceneAddress, LoadSceneMode.Additive).ToUniTask();
         }
     }
