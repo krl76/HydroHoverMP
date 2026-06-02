@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using FishNet.Object;
+using FishNet.Object.Synchronizing;
 using UnityEngine;
 
 namespace Features.Networking
@@ -14,6 +15,8 @@ namespace Features.Networking
 
         private int _totalCheckpoints;
         private float _serverRaceStartTime;
+
+        public readonly SyncVar<uint> RaceStartTick = new(0);
 
         public static NetworkRaceManager Instance { get; private set; }
         public int TotalCheckpoints => Mathf.Max(_totalCheckpoints, _fallbackCheckpointCount);
@@ -39,6 +42,22 @@ namespace Features.Networking
             if (!IsServerInitialized) return;
 
             _serverRaceStartTime = Time.time;
+            RaceStartTick.Value = TimeManager != null ? TimeManager.Tick : 0u;
+        }
+
+        // Elapsed race time derived from the synchronized network tick, so every client
+        // shows the same running clock during the race. Returns 0 outside the race phase.
+        public float GetRaceElapsedSeconds()
+        {
+            if (TimeManager == null || RaceStartTick.Value == 0u) return 0f;
+            if (NetworkSessionController.Instance == null ||
+                NetworkSessionController.Instance.Phase.Value != SessionPhase.Race)
+                return 0f;
+
+            uint currentTick = TimeManager.Tick;
+            if (currentTick <= RaceStartTick.Value) return 0f;
+
+            return (float)((currentTick - RaceStartTick.Value) * TimeManager.TickDelta);
         }
 
         public void TryPassCheckpoint(NetworkPlayerData player, int checkpointIndex)

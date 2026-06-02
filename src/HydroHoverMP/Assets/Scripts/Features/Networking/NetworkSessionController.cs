@@ -160,8 +160,19 @@ namespace Features.Networking
             ReadyPlayers.Value = _players.Values.Count(p => p.IsReady.Value);
             ConnectedPlayers.Value = _players.Count;
 
-            if (Phase.Value == SessionPhase.Countdown && !CanStartCountdown())
+            if (Phase.Value == SessionPhase.Lobby)
+                ServerTryAutoStartCountdown();
+            else if (Phase.Value == SessionPhase.Countdown && !CanStartCountdown())
                 ServerCancelCountdown();
+        }
+
+        private void ServerTryAutoStartCountdown()
+        {
+            if (!IsServerInitialized) return;
+            if (Phase.Value != SessionPhase.Lobby) return;
+            if (!CanStartCountdown()) return;
+
+            ServerStartCountdown(false);
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -295,7 +306,12 @@ namespace Features.Networking
             if (!IsServerInitialized) return;
 
             foreach (NetworkPlayerData player in _players.Values)
+            {
                 player.ServerResetForLobby();
+                // Still-connected pilots are already loaded, so keep them ready: the next
+                // race auto-starts without forcing everyone to reconnect/confirm again.
+                player.IsReady.Value = true;
+            }
 
             Results.Clear();
             RefreshResultSnapshots();
@@ -321,9 +337,12 @@ namespace Features.Networking
 
         private bool CanStartCountdown()
         {
+            // Every connected pilot must be "ready". Ready is set automatically by each
+            // client once it has finished loading (see NetworkHoverOwnerBridge), so there
+            // is no manual confirmation — but the countdown still waits until everyone has
+            // actually loaded in, instead of starting the instant a player slot connects.
             return ConnectedPlayers.Value >= _minimumPlayers &&
-                   ReadyPlayers.Value == ConnectedPlayers.Value &&
-                   ConnectedPlayers.Value > 0;
+                   ReadyPlayers.Value == ConnectedPlayers.Value;
         }
 
         private void ServerCancelCountdown()

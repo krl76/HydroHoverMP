@@ -199,6 +199,7 @@ namespace UI.HUD
             RefreshHostStartButton(session, localPlayer);
 
             UpdateRaceInfoUI();
+            RefreshNetworkTimer(session, localPlayer);
             RefreshCountdown(session);
             RefreshLeaderboard(session, localPlayer);
 
@@ -221,6 +222,22 @@ namespace UI.HUD
                 : Mathf.Max(1, localPlayer.CheckpointIndex.Value);
 
             return $"CP {localPlayer.CheckpointIndex.Value}/{checkpointTotal}";
+        }
+
+        private void RefreshNetworkTimer(NetworkSessionController session, NetworkPlayerData localPlayer)
+        {
+            if (_timerText == null || session == null)
+                return;
+
+            float displayTime;
+            if (session.Phase.Value == SessionPhase.Results && localPlayer != null && localPlayer.IsFinished.Value)
+                displayTime = localPlayer.FinishTime.Value;
+            else
+                displayTime = NetworkRaceManager.Instance != null
+                    ? NetworkRaceManager.Instance.GetRaceElapsedSeconds()
+                    : 0f;
+
+            _timerText.text = FormatTime(displayTime);
         }
 
         private void RefreshCountdown(NetworkSessionController session)
@@ -379,7 +396,11 @@ namespace UI.HUD
 
         private static string BuildPingLabel()
         {
-            return "Ping -- ms";
+            FishNet.Managing.Timing.TimeManager timeManager = FishNet.InstanceFinder.TimeManager;
+            if (timeManager == null || !FishNet.InstanceFinder.IsClientStarted)
+                return "Ping -- ms";
+
+            return $"Ping {timeManager.RoundTripTime} ms";
         }
 
         private NetworkPlayerData GetLocalNetworkPlayer()
