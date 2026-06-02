@@ -147,7 +147,9 @@ namespace Features.Networking
         {
             if (!IsServerInitialized || player == null) return;
 
-            UpsertResult(player, true);
+            // Drop the player's leaderboard row entirely on disconnect. Reconnecting clients
+            // get a new ClientId, so keeping a "DC" row just accumulates stale duplicates.
+            RemoveResult(player);
             _players.Remove(player.OwnerId);
             ConnectedPlayers.Value = _players.Count;
             HandlePlayerCountChangedAfterDisconnect();
@@ -391,6 +393,15 @@ namespace Features.Networking
                 Results[existingIndex] = snapshot;
             else
                 Results.Add(snapshot);
+        }
+
+        private void RemoveResult(NetworkPlayerData player)
+        {
+            if (player == null) return;
+
+            int existingIndex = FindResultIndex(player.ClientId);
+            if (existingIndex >= 0)
+                Results.RemoveAt(existingIndex);
         }
 
         private int FindResultIndex(int clientId)
