@@ -6165,7 +6165,7 @@
     "m_FunctionName": "GerstnerWaveCalc",
     "m_FunctionSource": "",
     "m_FunctionSourceUsePragmas": true,
-    "m_FunctionBody": "float len = max(WaveParams.x, 0.01); // Защита от деления на 0\r\nfloat amp = WaveParams.y;\r\nfloat speed = WaveParams.z;\r\n\r\nfloat k = 6.28318 / len; \r\nfloat f = k * (dot(WaveDir, WorldPos.xz) - speed * Time);\r\n\r\nOutOffset = TotalOffset + amp * sin(f);"
+    "m_FunctionBody": "float len = max(WaveParams.x, 0.01); // Защита от деления на 0\r\nfloat amp = WaveParams.y;\r\nfloat speed = WaveParams.z;\r\n\r\nfloat k = 6.28318 / len; \r\nfloat f = k * (dot(WaveDir, WorldPos.xz) - speed * WaveParams.w);\r\n\r\nOutOffset = TotalOffset + amp * sin(f);"
 }
 
 {
@@ -6924,7 +6924,7 @@
     "m_FunctionName": "GerstnerWaveCalc2",
     "m_FunctionSource": "",
     "m_FunctionSourceUsePragmas": true,
-    "m_FunctionBody": "float len = max(WaveParams.x, 0.01); // Защита от деления на 0\r\nfloat amp = WaveParams.y;\r\nfloat speed = WaveParams.z;\r\n\r\nfloat k = 6.28318 / len; \r\nfloat f = k * (dot(WaveDir, WorldPos.xz) - speed * Time);\r\n\r\nOutOffset = TotalOffset + amp * sin(f);"
+    "m_FunctionBody": "float len = max(WaveParams.x, 0.01); // Защита от деления на 0\r\nfloat amp = WaveParams.y;\r\nfloat speed = WaveParams.z;\r\n\r\nfloat k = 6.28318 / len; \r\nfloat f = k * (dot(WaveDir, WorldPos.xz) - speed * WaveParams.w);\r\n\r\nOutOffset = TotalOffset + amp * sin(f);"
 }
 
 {

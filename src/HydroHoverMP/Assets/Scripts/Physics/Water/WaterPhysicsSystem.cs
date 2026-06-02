@@ -15,6 +15,7 @@ namespace Physics.Water
     
         private float _amplitudeMultiplier = 1f;
         private float _targetMultiplier = 1f;
+        private float _waveTime;
     
         [Inject]
         public void Construct(WaveSettings settings)
@@ -24,9 +25,23 @@ namespace Physics.Water
 
         private void Update()
         {
+            // One synchronized wave clock shared by the GPU (shader vertex displacement) and the
+            // CPU (GetWaterHeightAt — buoyancy + remote visual float). Every client and the server
+            // read the same FishNet network time, so all machines render the identical wave surface.
+            _waveTime = GetSyncedWaveTime();
             _amplitudeMultiplier = Mathf.MoveTowards(_amplitudeMultiplier, _targetMultiplier, Time.deltaTime * 0.5f);
-            
+
             UpdateShaderGlobals();
+        }
+
+        private static float GetSyncedWaveTime()
+        {
+            FishNet.Managing.Timing.TimeManager timeManager = FishNet.InstanceFinder.TimeManager;
+            if (timeManager != null)
+                return (float)timeManager.TicksToTime(timeManager.GetPreciseTick(FishNet.Managing.Timing.TickType.Tick));
+
+            // Offline / single-player: no network clock, fall back to local time.
+            return Time.time;
         }
 
         private void UpdateShaderGlobals()
@@ -39,10 +54,10 @@ namespace Physics.Water
             float finalAmp1 = _settings.Amplitude1 * _amplitudeMultiplier;
             float finalAmp2 = _settings.Amplitude2 * _amplitudeMultiplier;
         
-            Shader.SetGlobalVector(Wave1Params, new Vector4(_settings.Wavelength1, finalAmp1, _settings.Speed1, 0));
+            Shader.SetGlobalVector(Wave1Params, new Vector4(_settings.Wavelength1, finalAmp1, _settings.Speed1, _waveTime));
             Shader.SetGlobalVector(Wave1Dir, _settings.Direction1.normalized);
         
-            Shader.SetGlobalVector(Wave2Params, new Vector4(_settings.Wavelength2, finalAmp2, _settings.Speed2, 0));
+            Shader.SetGlobalVector(Wave2Params, new Vector4(_settings.Wavelength2, finalAmp2, _settings.Speed2, _waveTime));
             Shader.SetGlobalVector(Wave2Dir, _settings.Direction2.normalized);
         }
     
@@ -52,8 +67,8 @@ namespace Physics.Water
             if (_settings == null)
                 return baseHeight;
 
-            float time = Time.time;
-        
+            float time = _waveTime;
+
             float finalAmp1 = _settings.Amplitude1 * _amplitudeMultiplier;
             float finalAmp2 = _settings.Amplitude2 * _amplitudeMultiplier;
         
