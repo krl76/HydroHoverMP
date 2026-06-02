@@ -23,14 +23,22 @@ namespace Features.Networking
         [Tooltip("How fast the remote boat's average height above the water tracks the networked value. " +
                  "Low = the boat bobs with the LOCAL waves (smoothest); high = it follows the networked vertical motion (more exact, more jitter).")]
         [SerializeField] private float _remoteOffsetSharpness = 2f;
-        [SerializeField] private float _remoteTiltSharpness = 6f;
-        [SerializeField] private float _remoteSampleDistance = 1.5f;
+        [Tooltip("Vertical glide. Lower = the boat hovers more gently over swells instead of rigidly tracking the surface.")]
+        [SerializeField] private float _remoteHeightSharpness = 5f;
+        [SerializeField] private float _remoteTiltSharpness = 5f;
+        [Range(0f, 1f)]
+        [Tooltip("Fraction of the wave-surface tilt applied. A hovercraft on its cushion barely follows wave faces, so keep this well below 1.")]
+        [SerializeField] private float _remoteTiltStrength = 0.5f;
+        [Tooltip("Hard cap on remote boat tilt (degrees) so it never snaps to a steep wave face and looks like it's flying.")]
+        [SerializeField] private float _remoteMaxTiltDegrees = 10f;
+        [SerializeField] private float _remoteSampleDistance = 2.5f;
         [Tooltip("Extra lift (metres) added to the remote boat's resting height so it doesn't appear to sink. Tune until the remote waterline matches the local boat.")]
         [SerializeField] private float _remoteHeightBias = 0.25f;
 
         private bool _remoteVisualFloatActive;
         private bool _remoteFloatInitialized;
         private float _smoothWaterOffset;
+        private float _smoothDisplayY;
         private Vector3 _smoothFloatNormal = Vector3.up;
         private WaterPhysicsSystem _remoteWaterSystem;
 
@@ -187,6 +195,7 @@ namespace Features.Networking
             if (_remoteWaterSystem == null) return;
 
             Vector3 position = transform.position;
+            float dt = Time.deltaTime;
             float centerHeight = _remoteWaterSystem.GetWaterHeightAt(position);
 
             // Average height the owner floats above the water, taken from the networked Y but
@@ -198,30 +207,42 @@ namespace Features.Networking
             float rightHeight = _remoteWaterSystem.GetWaterHeightAt(position + transform.right * _remoteSampleDistance);
             Vector3 vForward = new(0f, forwardHeight - centerHeight, _remoteSampleDistance);
             Vector3 vRight = new(_remoteSampleDistance, rightHeight - centerHeight, 0f);
-            Vector3 targetNormal = Vector3.Cross(vForward, vRight).normalized;
-            if (targetNormal.sqrMagnitude < 0.0001f)
-                targetNormal = Vector3.up;
+            Vector3 surfaceNormal = Vector3.Cross(vForward, vRight).normalized;
+            if (surfaceNormal.sqrMagnitude < 0.0001f)
+                surfaceNormal = Vector3.up;
+
+            // Apply only a fraction of the surface tilt: a hovercraft rides its air cushion and
+            // barely follows steep wave faces, unlike a rigid raft. Keeps the boat from "flying".
+            Vector3 targetNormal = Vector3.Slerp(Vector3.up, surfaceNormal, Mathf.Clamp01(_remoteTiltStrength));
 
             if (!_remoteFloatInitialized)
             {
                 _smoothWaterOffset = networkedOffset;
                 _smoothFloatNormal = targetNormal;
+                _smoothDisplayY = centerHeight + networkedOffset + _remoteHeightBias;
                 _remoteFloatInitialized = true;
             }
             else
             {
-                float dt = Time.deltaTime;
                 _smoothWaterOffset = Mathf.Lerp(_smoothWaterOffset, networkedOffset, 1f - Mathf.Exp(-_remoteOffsetSharpness * dt));
                 _smoothFloatNormal = Vector3.Slerp(_smoothFloatNormal, targetNormal, 1f - Mathf.Exp(-_remoteTiltSharpness * dt));
             }
 
-            // Horizontal position + heading stay as NetworkTransform interpolated them; the
-            // vertical bob rides the SMOOTH local wave surface at the owner's average height,
-            // and tilt is aligned to the local surface normal. Both are jitter-free locally.
-            float smoothY = centerHeight + _smoothWaterOffset + _remoteHeightBias;
-            Quaternion tilt = Quaternion.FromToRotation(Vector3.up, _smoothFloatNormal);
+            // Vertical bob rides the local wave surface at the owner's average height, but glides
+            // (low-passed) so the boat hovers over swells instead of rigidly tracking every wave.
+            float targetY = centerHeight + _smoothWaterOffset + _remoteHeightBias;
+            _smoothDisplayY = Mathf.Lerp(_smoothDisplayY, targetY, 1f - Mathf.Exp(-_remoteHeightSharpness * dt));
+
+            // Hard cap the tilt so a steep wave can never throw the boat into a dramatic pose.
+            Vector3 cappedNormal = _smoothFloatNormal;
+            float tiltAngle = Vector3.Angle(Vector3.up, cappedNormal);
+            if (tiltAngle > _remoteMaxTiltDegrees && tiltAngle > 0.0001f)
+                cappedNormal = Vector3.Slerp(Vector3.up, cappedNormal, _remoteMaxTiltDegrees / tiltAngle);
+
+            // Horizontal position + heading stay as NetworkTransform interpolated them.
+            Quaternion tilt = Quaternion.FromToRotation(Vector3.up, cappedNormal);
             Quaternion finalRotation = tilt * Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
-            transform.SetPositionAndRotation(new Vector3(position.x, smoothY, position.z), finalRotation);
+            transform.SetPositionAndRotation(new Vector3(position.x, _smoothDisplayY, position.z), finalRotation);
         }
 
         private void ResolveRemoteWaterSystem()
