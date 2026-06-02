@@ -277,8 +277,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Scenes.DefaultScene
   _enableGlobalScenes: 1
   _startInOffline: 0
-  _offlineScene: Bootstrap
-  _onlineScene: Gameplay
+  _offlineScene: Assets/Scenes/Bootstrap.unity
+  _onlineScene: Assets/Scenes/Gameplay.unity
   _replaceScenes: 0
 --- !u!114 &2093843041
 MonoBehaviour:
