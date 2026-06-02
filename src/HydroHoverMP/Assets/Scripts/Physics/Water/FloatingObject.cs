@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using Zenject;
 
 namespace Physics.Water
 {
@@ -14,19 +13,11 @@ namespace Physics.Water
 
         private WaterPhysicsSystem _waterSystem;
 
-        [Inject]
-        public void Construct(WaterPhysicsSystem waterSystem)
-        {
-            _waterSystem = waterSystem;
-        }
-        
         private void Update()
         {
-            if (_waterSystem == null) 
-            {
-                Debug.LogError("WaterSystem is NULL on Buoy!");
-                return;
-            }
+            ResolveWaterSystemIfNeeded();
+            if (_waterSystem == null) return;
+
             UpdateFloating();
         }
 
@@ -52,6 +43,17 @@ namespace Physics.Water
             Quaternion targetRotation = Quaternion.FromToRotation(Vector3.up, normal);
         
             transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation * Quaternion.Euler(0, transform.eulerAngles.y, 0), Time.deltaTime * 5f);
+        }
+
+        // Буи живут в сцене Level, чей Zenject-контекст наследуется от контракта GameplayContext.
+        // На выделенном сервере сцена Gameplay может существовать в двух экземплярах, и прямая
+        // инъекция WaterPhysicsSystem падает с "multiple matches". Поэтому DI здесь не используем,
+        // а ищем систему в сцене — так же, как HoverCushion и HoverAerodynamics.
+        private void ResolveWaterSystemIfNeeded()
+        {
+            if (_waterSystem != null) return;
+
+            _waterSystem = FindFirstObjectByType<WaterPhysicsSystem>();
         }
     }
 }
