@@ -1,8 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Data.Leaderbords;
 using Features.Networking;
+using Infrastructure.Services.Network;
 using Newtonsoft.Json;
 using UnityEngine;
 
@@ -13,13 +15,22 @@ namespace Infrastructure.Services.Leaderboard
         private const string FileName = "leaderboard.json";
         private readonly string _path;
         private readonly LeaderboardConfiguration _configuration;
+        private readonly INetworkConnectionService _connectionService;
         private LeaderboardData _data;
+        private List<Record> _dedicatedRecords = new();
+        private bool _dedicatedRequestInFlight;
 
-        public LeaderboardService(LeaderboardConfiguration configuration = null)
+        public event Action OnDedicatedRecordsUpdated;
+
+        public LeaderboardService(LeaderboardConfiguration configuration = null, INetworkConnectionService connectionService = null)
         {
             _configuration = configuration ?? new LeaderboardConfiguration();
+            _connectionService = connectionService;
             _path = Path.Combine(Application.persistentDataPath, FileName);
             Load();
+
+            if (_connectionService != null)
+                _connectionService.OnLeaderboardRecordsReceived += OnDedicatedRecordsReceived;
         }
 
         public LeaderboardSourceMode SourceMode => _configuration.SourceMode;
@@ -52,8 +63,9 @@ namespace Infrastructure.Services.Leaderboard
                     return session.GetDedicatedLeaderboardRecords(count);
                 }
 
-                Debug.LogWarning($"[LeaderboardService] Dedicated leaderboard mode is selected, but no NetworkSessionController is available. Connect to {DedicatedServerAddress}:{DedicatedServerPort} to view server records.");
-                return new List<Record>();
+                // Disconnected (main menu): serve the most recent live-query result, fetched via
+                // the short-lived leaderboard-only connection (see RequestDedicatedRecords).
+                return _dedicatedRecords.Take(count).ToList();
             }
 
             return _data.Records.Take(count).ToList();
@@ -65,13 +77,33 @@ namespace Infrastructure.Services.Leaderboard
             return records.Count > 0 ? records[0].Time : 0f;
         }
 
-        public void RequestDedicatedRecords()
+        public bool RequestDedicatedRecords()
         {
-            if (!IsUsingDedicatedServer) return;
+            if (!IsUsingDedicatedServer) return false;
 
-            NetworkSessionController session = NetworkSessionController.Instance;
-            if (session != null)
-                session.RequestDedicatedLeaderboardServerRpc();
+            // Already in a live session: the connected SyncList path serves data; nothing to fetch.
+            if (NetworkSessionController.Instance != null) return false;
+            if (_connectionService == null) return false;
+            if (_dedicatedRequestInFlight) return true; // a query is already pending; results will arrive.
+
+            _dedicatedRequestInFlight = _connectionService.BeginLeaderboardQuery(5);
+            return _dedicatedRequestInFlight;
+        }
+
+        public void CancelDedicatedRecordsRequest()
+        {
+            // Always forward: the query connection stays open after results are delivered, so the
+            // window closing must tear it down even when no request is "in flight". Safe no-op if
+            // there is no active query.
+            _dedicatedRequestInFlight = false;
+            _connectionService?.CancelLeaderboardQuery();
+        }
+
+        private void OnDedicatedRecordsReceived(IReadOnlyList<Record> records)
+        {
+            _dedicatedRequestInFlight = false;
+            _dedicatedRecords = records != null ? new List<Record>(records) : new List<Record>();
+            OnDedicatedRecordsUpdated?.Invoke();
         }
 
         private void AddLocalRecord(float time, string nickname)
