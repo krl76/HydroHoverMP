@@ -27,15 +27,18 @@ namespace Infrastructure.Services.Leaderboard
         public ushort DedicatedServerPort => _configuration.NormalizedDedicatedServerPort;
         public bool IsUsingDedicatedServer => _configuration.UseDedicatedServer;
 
-        public void AddRecord(float time)
+        public void AddRecord(float time, string nickname)
         {
             if (IsUsingDedicatedServer)
             {
+                // On a dedicated server the authoritative record (time + nickname) is written
+                // server-side in NetworkSessionController.ServerAddDedicatedLeaderboardRecord when
+                // the player finishes; the client never persists locally in this mode.
                 RequestDedicatedRecords();
                 return;
             }
 
-            AddLocalRecord(time);
+            AddLocalRecord(time, nickname);
         }
 
         public List<Record> GetTopRecords(int count)
@@ -71,14 +74,15 @@ namespace Infrastructure.Services.Leaderboard
                 session.RequestDedicatedLeaderboardServerRpc();
         }
 
-        private void AddLocalRecord(float time)
+        private void AddLocalRecord(float time, string nickname)
         {
             _data.Records.Add(new Record
             {
                 Time = time,
-                Date = System.DateTime.Now.Ticks
+                Date = System.DateTime.Now.Ticks,
+                PlayerName = string.IsNullOrWhiteSpace(nickname) ? "Pilot" : nickname.Trim()
             });
-            
+
             _data.Records = _data.Records.OrderBy(r => r.Time).ToList();
             Save();
         }

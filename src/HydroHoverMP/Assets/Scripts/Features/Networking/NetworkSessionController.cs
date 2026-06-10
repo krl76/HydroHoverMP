@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using Data.Leaderbords;
+using Infrastructure.Services.Network;
 using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
@@ -44,11 +45,13 @@ namespace Features.Networking
     {
         public float Time;
         public long Date;
+        public string Nickname;
 
-        public NetworkLeaderboardRecord(float time, long date)
+        public NetworkLeaderboardRecord(float time, long date, string nickname)
         {
             Time = time;
             Date = date;
+            Nickname = nickname;
         }
 
         public Record ToRecord()
@@ -56,7 +59,8 @@ namespace Features.Networking
             return new Record
             {
                 Time = Time,
-                Date = Date
+                Date = Date,
+                PlayerName = Nickname
             };
         }
     }
@@ -67,6 +71,13 @@ namespace Features.Networking
         Countdown = 2,
         Race = 3,
         Results = 4
+    }
+
+    public enum PostRaceVote : byte
+    {
+        None = 0,
+        Restart = 1,
+        Menu = 2
     }
 
     [DisallowMultipleComponent]
@@ -88,6 +99,10 @@ namespace Features.Networking
         public readonly SyncList<NetworkRaceResult> Results = new();
         public readonly SyncList<NetworkLeaderboardRecord> DedicatedLeaderboardRecords = new();
 
+        // Post-race "Race again" / "Main menu" choice, keyed by owner ClientId. A strict
+        // majority of connected racers voting Restart returns everyone to the lobby.
+        public readonly SyncDictionary<int, PostRaceVote> PostRaceVotes = new();
+
         public IReadOnlyCollection<NetworkPlayerData> Players => _players.Values;
         public int MinimumPlayers => _minimumPlayers;
 
@@ -106,6 +121,7 @@ namespace Features.Networking
         {
             base.OnStartServer();
             Phase.Value = SessionPhase.Lobby;
+            Debug.Log($"[NetworkSessionController] Dedicated leaderboard file: {GetDedicatedLeaderboardPath()}");
             LoadDedicatedLeaderboardRecords();
             NetworkManager.ServerManager.OnRemoteConnectionState += OnRemoteConnectionState;
         }
@@ -150,6 +166,7 @@ namespace Features.Networking
             // Drop the player's leaderboard row entirely on disconnect. Reconnecting clients
             // get a new ClientId, so keeping a "DC" row just accumulates stale duplicates.
             RemoveResult(player);
+            PostRaceVotes.Remove(player.OwnerId);
             _players.Remove(player.OwnerId);
             ConnectedPlayers.Value = _players.Count;
             HandlePlayerCountChangedAfterDisconnect();
@@ -187,6 +204,39 @@ namespace Features.Networking
         }
 
         [ServerRpc(RequireOwnership = false)]
+        public void SubmitPostRaceVoteServerRpc(PostRaceVote vote, NetworkConnection sender = null)
+        {
+            if (!IsServerInitialized) return;
+            if (Phase.Value != SessionPhase.Results) return;
+            if (sender == null || !_players.ContainsKey(sender.ClientId)) return;
+
+            PostRaceVotes[sender.ClientId] = vote;
+            EvaluatePostRaceVotes();
+        }
+
+        // A strict majority of still-connected racers choosing "Race again" returns the whole
+        // session to the lobby (which auto-starts a fresh countdown). Players who pick "Main
+        // menu" just disconnect; their vote is dropped and the threshold recomputed.
+        private void EvaluatePostRaceVotes()
+        {
+            if (!IsServerInitialized) return;
+            if (Phase.Value != SessionPhase.Results) return;
+
+            int connected = _players.Count;
+            if (connected <= 0) return;
+
+            int restartVotes = 0;
+            foreach (KeyValuePair<int, PostRaceVote> vote in PostRaceVotes)
+            {
+                if (vote.Value == PostRaceVote.Restart)
+                    restartVotes++;
+            }
+
+            if (restartVotes * 2 > connected)
+                ServerReturnToLobby();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
         public void RequestForceStartServerRpc(NetworkConnection sender = null)
         {
             if (!CanAcceptSessionAction(sender)) return;
@@ -201,16 +251,18 @@ namespace Features.Networking
             if (!IsServerInitialized) return;
 
             RefreshResultSnapshots();
+            PostRaceVotes.Clear();
             CountdownRemaining.Value = 0f;
             Phase.Value = SessionPhase.Results;
         }
 
-        public void ServerAddDedicatedLeaderboardRecord(float time)
+        public void ServerAddDedicatedLeaderboardRecord(float time, string nickname)
         {
             if (!IsServerInitialized) return;
             if (time <= 0f) return;
 
-            DedicatedLeaderboardRecords.Add(new NetworkLeaderboardRecord(time, System.DateTime.Now.Ticks));
+            string safeNickname = string.IsNullOrWhiteSpace(nickname) ? "Pilot" : nickname.Trim();
+            DedicatedLeaderboardRecords.Add(new NetworkLeaderboardRecord(time, System.DateTime.Now.Ticks, safeNickname));
             SortDedicatedLeaderboardRecords();
             SaveDedicatedLeaderboardRecords();
         }
@@ -222,7 +274,8 @@ namespace Features.Networking
                 .Select(record => new Record
                 {
                     Time = record.Time,
-                    Date = record.Date
+                    Date = record.Date,
+                    PlayerName = record.Nickname
                 })
                 .ToList();
         }
@@ -316,6 +369,7 @@ namespace Features.Networking
             }
 
             Results.Clear();
+            PostRaceVotes.Clear();
             RefreshResultSnapshots();
             CountdownRemaining.Value = 0f;
             Phase.Value = SessionPhase.Lobby;
@@ -362,7 +416,10 @@ namespace Features.Networking
             else if (Phase.Value == SessionPhase.Race && _players.Count <= 1)
                 ServerShowResults();
             else if (Phase.Value == SessionPhase.Results)
+            {
                 RefreshResultSnapshots();
+                EvaluatePostRaceVotes();
+            }
         }
 
         private bool CanAcceptSessionAction(NetworkConnection sender)
@@ -431,27 +488,52 @@ namespace Features.Networking
         {
             DedicatedLeaderboardRecords.Clear();
             string path = GetDedicatedLeaderboardPath();
-            if (!File.Exists(path)) return;
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    Debug.Log($"[NetworkSessionController] No dedicated leaderboard file yet at '{path}'. Starting empty.");
+                    return;
+                }
 
-            string json = File.ReadAllText(path);
-            LeaderboardData data = JsonConvert.DeserializeObject<LeaderboardData>(json) ?? new LeaderboardData();
-            foreach (Record record in data.Records.OrderBy(record => record.Time).ThenBy(record => record.Date))
-                DedicatedLeaderboardRecords.Add(new NetworkLeaderboardRecord(record.Time, record.Date));
+                string json = File.ReadAllText(path);
+                LeaderboardData data = JsonConvert.DeserializeObject<LeaderboardData>(json) ?? new LeaderboardData();
+                foreach (Record record in data.Records.OrderBy(record => record.Time).ThenBy(record => record.Date))
+                    DedicatedLeaderboardRecords.Add(new NetworkLeaderboardRecord(record.Time, record.Date, record.PlayerName));
+
+                Debug.Log($"[NetworkSessionController] Loaded {DedicatedLeaderboardRecords.Count} leaderboard record(s) from '{path}'.");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[NetworkSessionController] Failed to load dedicated leaderboard from '{path}': {e}");
+            }
         }
 
         private void SaveDedicatedLeaderboardRecords()
         {
-            LeaderboardData data = new()
+            string path = GetDedicatedLeaderboardPath();
+            try
             {
-                Records = DedicatedLeaderboardRecords
-                    .Select(record => record.ToRecord())
-                    .OrderBy(record => record.Time)
-                    .ThenBy(record => record.Date)
-                    .ToList()
-            };
+                string directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
 
-            string json = JsonConvert.SerializeObject(data, Formatting.Indented);
-            File.WriteAllText(GetDedicatedLeaderboardPath(), json);
+                LeaderboardData data = new()
+                {
+                    Records = DedicatedLeaderboardRecords
+                        .Select(record => record.ToRecord())
+                        .OrderBy(record => record.Time)
+                        .ThenBy(record => record.Date)
+                        .ToList()
+                };
+
+                string json = JsonConvert.SerializeObject(data, Formatting.Indented);
+                File.WriteAllText(path, json);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[NetworkSessionController] Failed to save dedicated leaderboard to '{path}': {e}");
+            }
         }
 
         private string GetDedicatedLeaderboardPath()
@@ -460,7 +542,30 @@ namespace Features.Networking
                 ? "dedicated_leaderboard.json"
                 : _dedicatedLeaderboardFileName.Trim();
 
-            return Path.Combine(Application.persistentDataPath, fileName);
+            return Path.Combine(ResolveDataDirectory(), fileName);
+        }
+
+        // Stable, operator-controlled location for server-persisted data. Resolution order:
+        //   1) "-dataDir <path>" / "-leaderboardDir <path>" launch argument (highest priority),
+        //   2) a "ServerData" folder beside the built executable (survives restarts of the same install),
+        //   3) Application.persistentDataPath (Editor / fallback).
+        private string ResolveDataDirectory()
+        {
+            string argDir = ServerEnvironment.GetCommandLineValue("-dataDir")
+                            ?? ServerEnvironment.GetCommandLineValue("-leaderboardDir");
+            if (!string.IsNullOrWhiteSpace(argDir))
+                return argDir.Trim();
+
+            if (!Application.isEditor)
+            {
+                // In a built player Application.dataPath points at "<Game>_Data"; its parent is the
+                // folder holding the executable, so "<exe folder>/ServerData" sits next to the build.
+                string exeDir = Directory.GetParent(Application.dataPath)?.FullName;
+                if (!string.IsNullOrWhiteSpace(exeDir))
+                    return Path.Combine(exeDir, "ServerData");
+            }
+
+            return Application.persistentDataPath;
         }
     }
 }

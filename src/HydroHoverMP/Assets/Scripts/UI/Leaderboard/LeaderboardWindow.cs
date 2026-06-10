@@ -48,7 +48,7 @@ namespace UI.Leaderboard
                 var itemObj = Instantiate(_recordItemPrefab, _container);
                 
                 var view = itemObj.GetComponent<RecordItemView>();
-                view.SetData(i + 1, record.Time);
+                view.SetData(i + 1, record.Time, record.PlayerName);
             }
         }
 

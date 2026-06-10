@@ -10,7 +10,7 @@ namespace Infrastructure.Services.Leaderboard
         ushort DedicatedServerPort { get; }
         bool IsUsingDedicatedServer { get; }
 
-        void AddRecord(float time);
+        void AddRecord(float time, string nickname);
         List<Record> GetTopRecords(int count);
         float GetBestTime();
         void RequestDedicatedRecords();

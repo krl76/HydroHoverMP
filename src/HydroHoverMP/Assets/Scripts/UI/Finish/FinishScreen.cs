@@ -30,6 +30,7 @@ namespace UI.Finish
         private INetworkConnectionService _connectionService;
         private TextMeshProUGUI _networkResultsText;
         private TextMeshProUGUI _networkStatusText;
+        private bool _voted;
 
         [Inject]
         public void Construct(IRaceManagerService raceService,
@@ -47,9 +48,17 @@ namespace UI.Finish
 
         private void Start()
         {
-            float currentTime = _raceService.CurrentTime;
+            NetworkSessionController session = NetworkSessionController.Instance;
+            bool networked = session != null;
 
-            _leaderboardService.AddRecord(currentTime);
+            // In multiplayer the authoritative time comes from the synced player state; the
+            // local race service is inert during a networked race.
+            float currentTime = networked ? GetLocalNetworkedFinishTime() : _raceService.CurrentTime;
+
+            // Local (single-player) leaderboard only. In multiplayer the record (time + nickname)
+            // is written server-side in NetworkRaceManager.ServerFinishPlayer.
+            if (!networked)
+                _leaderboardService.AddRecord(currentTime, NetworkPlayerPreferences.GetNickname());
 
             _timeText.text = $"Time: {FormatTime(currentTime)}";
 
@@ -59,6 +68,9 @@ namespace UI.Finish
             EnsureNetworkResultsPanel();
             RefreshNetworkResults();
 
+            SetButtonLabel(_restartButton, networked ? "Race Again" : "Restart");
+            SetButtonLabel(_menuButton, "Main Menu");
+
             _restartButton.onClick.AddListener(OnRestartClicked);
             _menuButton.onClick.AddListener(OnMenuClicked);
         }
@@ -66,6 +78,7 @@ namespace UI.Finish
         private void Update()
         {
             RefreshNetworkResults();
+            RefreshVoteButton();
         }
 
         private void OnRestartClicked()
@@ -73,9 +86,11 @@ namespace UI.Finish
             NetworkSessionController session = NetworkSessionController.Instance;
             if (session != null)
             {
-                session.RequestRestartServerRpc();
-                if (_networkStatusText != null)
-                    _networkStatusText.text = "Restart requested. Returning synced session to lobby.";
+                // Multiplayer: cast a "Race again" vote. The server restarts the session for
+                // everyone once a majority of connected pilots agree.
+                _voted = true;
+                session.SubmitPostRaceVoteServerRpc(PostRaceVote.Restart);
+                RefreshVoteButton();
                 return;
             }
 
@@ -85,11 +100,47 @@ namespace UI.Finish
 
         private void OnMenuClicked()
         {
+            // "Main menu" is always available per-player: leave the session immediately. The
+            // server drops this pilot's vote and recomputes the restart majority for the rest.
             if (NetworkSessionController.Instance != null)
                 _connectionService?.StopConnection();
 
             _windowService.Close(WindowID.Finish);
             _stateMachine.Enter<MainMenuState>();
+        }
+
+        private void RefreshVoteButton()
+        {
+            if (!_voted || _restartButton == null)
+                return;
+
+            if (_restartButton.interactable)
+            {
+                _restartButton.interactable = false;
+                SetButtonLabel(_restartButton, "Voted ✓");
+            }
+        }
+
+        private float GetLocalNetworkedFinishTime()
+        {
+            NetworkPlayerData[] players = FindObjectsByType<NetworkPlayerData>(FindObjectsSortMode.None);
+            foreach (NetworkPlayerData player in players)
+            {
+                if (player != null && player.IsOwner)
+                    return player.FinishTime.Value;
+            }
+
+            return 0f;
+        }
+
+        private static void SetButtonLabel(Button button, string label)
+        {
+            if (button == null)
+                return;
+
+            TextMeshProUGUI text = button.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (text != null)
+                text.text = label;
         }
 
         private void EnsureNetworkResultsPanel()
@@ -116,7 +167,7 @@ namespace UI.Finish
 
             if (_networkStatusText != null)
                 _networkStatusText.text = session.Phase.Value == SessionPhase.Results
-                    ? "Server results synced to all clients"
+                    ? BuildVoteStatus(session)
                     : $"Session is {session.Phase.Value}; showing latest synced player data";
 
             if (session.Results.Count > 0)
@@ -140,6 +191,24 @@ namespace UI.Finish
                 .ToList();
 
             _networkResultsText.text = string.Join("\n", orderedPlayers.Select((player, index) => BuildResultLine(index + 1, player)));
+        }
+
+        private string BuildVoteStatus(NetworkSessionController session)
+        {
+            int connected = session.ConnectedPlayers.Value;
+            int restartVotes = 0;
+            foreach (KeyValuePair<int, PostRaceVote> vote in session.PostRaceVotes)
+            {
+                if (vote.Value == PostRaceVote.Restart)
+                    restartVotes++;
+            }
+
+            int needed = connected / 2 + 1;
+            string prompt = _voted
+                ? "You voted to race again — waiting for the others."
+                : "Race again, or back to the main menu?";
+
+            return $"{prompt}   Race again: {restartVotes}/{connected} (need {needed})";
         }
 
         private string BuildSnapshotResults(IReadOnlyList<NetworkRaceResult> results)

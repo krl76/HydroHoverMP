@@ -90,7 +90,7 @@ namespace Features.Networking
             float finishTime = Mathf.Max(0f, Time.time - _serverRaceStartTime);
             player.ServerMarkFinished(finishTime);
             player.ServerAddScore(_finishScore);
-            NetworkSessionController.Instance?.ServerAddDedicatedLeaderboardRecord(finishTime);
+            NetworkSessionController.Instance?.ServerAddDedicatedLeaderboardRecord(finishTime, player.Nickname.Value);
 
             if (NetworkSessionController.Instance != null &&
                 NetworkSessionController.Instance.Players.Any() &&
