@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,24 +13,30 @@ namespace Infrastructure.Services.Leaderboard
     public class LeaderboardService : ILeaderboardService
     {
         private const string FileName = "leaderboard.json";
+        private const string DedicatedCacheFileName = "dedicated_leaderboard_cache.json";
+        private const int CacheSize = 50;
+
         private readonly string _path;
+        private readonly string _dedicatedCachePath;
         private readonly LeaderboardConfiguration _configuration;
         private readonly INetworkConnectionService _connectionService;
         private LeaderboardData _data;
-        private List<Record> _dedicatedRecords = new();
-        private bool _dedicatedRequestInFlight;
-
-        public event Action OnDedicatedRecordsUpdated;
+        private List<Record> _dedicatedCache = new();
 
         public LeaderboardService(LeaderboardConfiguration configuration = null, INetworkConnectionService connectionService = null)
         {
             _configuration = configuration ?? new LeaderboardConfiguration();
             _connectionService = connectionService;
             _path = Path.Combine(Application.persistentDataPath, FileName);
+            _dedicatedCachePath = Path.Combine(Application.persistentDataPath, DedicatedCacheFileName);
             Load();
+            LoadDedicatedCache();
 
+            // Snapshot the replicated leaderboard the instant we begin leaving a live session, while
+            // the SyncList is still populated — that's how the just-finished race ends up visible in
+            // the disconnected main-menu view.
             if (_connectionService != null)
-                _connectionService.OnLeaderboardRecordsReceived += OnDedicatedRecordsReceived;
+                _connectionService.OnStatusChanged += OnConnectionStatusChanged;
         }
 
         public LeaderboardSourceMode SourceMode => _configuration.SourceMode;
@@ -43,9 +49,9 @@ namespace Infrastructure.Services.Leaderboard
             if (IsUsingDedicatedServer)
             {
                 // On a dedicated server the authoritative record (time + nickname) is written
-                // server-side in NetworkSessionController.ServerAddDedicatedLeaderboardRecord when
-                // the player finishes; the client never persists locally in this mode.
-                RequestDedicatedRecords();
+                // server-side in NetworkSessionController.ServerAddDedicatedLeaderboardRecord when the
+                // player finishes; the client only mirrors the replicated list into its local cache.
+                CacheFromLiveSession();
                 return;
             }
 
@@ -59,13 +65,20 @@ namespace Infrastructure.Services.Leaderboard
                 NetworkSessionController session = NetworkSessionController.Instance;
                 if (session != null)
                 {
-                    session.RequestDedicatedLeaderboardServerRpc();
-                    return session.GetDedicatedLeaderboardRecords(count);
+                    // Connected: the replicated SyncList is authoritative. Snapshot it so the menu can
+                    // still show the last-known records after we disconnect. Persist to disk when the
+                    // board actually changed, so even an UNEXPECTED drop (which never fires Stopping)
+                    // leaves the latest board on disk for the next launch.
+                    List<Record> live = session.GetDedicatedLeaderboardRecords(CacheSize);
+                    bool changed = !RecordsEqual(_dedicatedCache, live);
+                    _dedicatedCache = live;
+                    if (changed)
+                        SaveDedicatedCache();
+                    return live.Take(count).ToList();
                 }
 
-                // Disconnected (main menu): serve the most recent live-query result, fetched via
-                // the short-lived leaderboard-only connection (see RequestDedicatedRecords).
-                return _dedicatedRecords.Take(count).ToList();
+                // Disconnected (main menu): serve the last-known cached records.
+                return _dedicatedCache.Take(count).ToList();
             }
 
             return _data.Records.Take(count).ToList();
@@ -77,33 +90,32 @@ namespace Infrastructure.Services.Leaderboard
             return records.Count > 0 ? records[0].Time : 0f;
         }
 
-        public bool RequestDedicatedRecords()
+        public void RequestDedicatedRecords()
         {
-            if (!IsUsingDedicatedServer) return false;
-
-            // Already in a live session: the connected SyncList path serves data; nothing to fetch.
-            if (NetworkSessionController.Instance != null) return false;
-            if (_connectionService == null) return false;
-            if (_dedicatedRequestInFlight) return true; // a query is already pending; results will arrive.
-
-            _dedicatedRequestInFlight = _connectionService.BeginLeaderboardQuery(5);
-            return _dedicatedRequestInFlight;
+            // Cache-based model: nothing to fetch from the menu. If we happen to be connected, refresh
+            // the cache from the live replicated list so the menu shows the latest after disconnect.
+            if (IsUsingDedicatedServer)
+                CacheFromLiveSession();
         }
 
-        public void CancelDedicatedRecordsRequest()
+        private void OnConnectionStatusChanged(NetworkConnectionStatus status)
         {
-            // Always forward: the query connection stays open after results are delivered, so the
-            // window closing must tear it down even when no request is "in flight". Safe no-op if
-            // there is no active query.
-            _dedicatedRequestInFlight = false;
-            _connectionService?.CancelLeaderboardQuery();
+            // StopConnection sets Stopping BEFORE actually tearing the client down, so the
+            // NetworkSessionController + its SyncList are still alive here — the right moment to
+            // persist the final board (including the race that was just finished).
+            if (status == NetworkConnectionStatus.Stopping)
+                CacheFromLiveSession();
         }
 
-        private void OnDedicatedRecordsReceived(IReadOnlyList<Record> records)
+        private void CacheFromLiveSession()
         {
-            _dedicatedRequestInFlight = false;
-            _dedicatedRecords = records != null ? new List<Record>(records) : new List<Record>();
-            OnDedicatedRecordsUpdated?.Invoke();
+            if (!IsUsingDedicatedServer) return;
+
+            NetworkSessionController session = NetworkSessionController.Instance;
+            if (session == null) return;
+
+            _dedicatedCache = session.GetDedicatedLeaderboardRecords(CacheSize);
+            SaveDedicatedCache();
         }
 
         private void AddLocalRecord(float time, string nickname)
@@ -127,16 +139,76 @@ namespace Infrastructure.Services.Leaderboard
 
         private void Load()
         {
-            if (File.Exists(_path))
+            try
             {
-                string json = File.ReadAllText(_path);
-                _data = JsonConvert.DeserializeObject<LeaderboardData>(json) ?? new LeaderboardData();
+                _data = File.Exists(_path)
+                    ? JsonConvert.DeserializeObject<LeaderboardData>(File.ReadAllText(_path)) ?? new LeaderboardData()
+                    : new LeaderboardData();
             }
-            else
+            catch (Exception e)
             {
+                Debug.LogWarning($"[Leaderboard] Failed to load local leaderboard from '{_path}': {e.Message}");
                 _data = new LeaderboardData();
+            }
+
+            // Newtonsoft overwrites the field initializer with null for an explicit "Records": null.
+            _data.Records ??= new List<Record>();
+        }
+
+        private static bool RecordsEqual(List<Record> a, List<Record> b)
+        {
+            if (a == null || b == null) return ReferenceEquals(a, b);
+            if (a.Count != b.Count) return false;
+
+            for (int i = 0; i < a.Count; i++)
+            {
+                Record x = a[i];
+                Record y = b[i];
+                if (x == null || y == null)
+                {
+                    if (!ReferenceEquals(x, y)) return false;
+                    continue;
+                }
+
+                if (x.Time != y.Time || x.Date != y.Date || x.PlayerName != y.PlayerName)
+                    return false;
+            }
+
+            return true;
+        }
+
+        private void LoadDedicatedCache()
+        {
+            try
+            {
+                if (!File.Exists(_dedicatedCachePath))
+                {
+                    _dedicatedCache = new List<Record>();
+                    return;
+                }
+
+                string json = File.ReadAllText(_dedicatedCachePath);
+                LeaderboardData data = JsonConvert.DeserializeObject<LeaderboardData>(json) ?? new LeaderboardData();
+                _dedicatedCache = data.Records ?? new List<Record>();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Leaderboard] Failed to load dedicated cache from '{_dedicatedCachePath}': {e.Message}");
+                _dedicatedCache = new List<Record>();
+            }
+        }
+
+        private void SaveDedicatedCache()
+        {
+            try
+            {
+                LeaderboardData data = new() { Records = _dedicatedCache ?? new List<Record>() };
+                File.WriteAllText(_dedicatedCachePath, JsonConvert.SerializeObject(data, Formatting.Indented));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Leaderboard] Failed to save dedicated cache to '{_dedicatedCachePath}': {e.Message}");
             }
         }
     }
 }
-
