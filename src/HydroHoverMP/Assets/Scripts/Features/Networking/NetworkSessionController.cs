@@ -90,6 +90,12 @@ namespace Features.Networking
         private readonly Dictionary<int, NetworkPlayerData> _players = new();
         private float _countdownEndsAt;
 
+        // Connections that only want to read the leaderboard (the main-menu live query). They must
+        // never be treated as racers: their auto-spawned player is despawned and they are excluded
+        // from ConnectedPlayers counting so they cannot trigger/block the countdown.
+        private readonly HashSet<NetworkConnection> _leaderboardOnlyConnections = new();
+        private FishNet.Component.Spawning.PlayerSpawner _playerSpawner;
+
         public static NetworkSessionController Instance { get; private set; }
 
         public readonly SyncVar<SessionPhase> Phase = new(SessionPhase.Lobby);
@@ -124,13 +130,33 @@ namespace Features.Networking
             Debug.Log($"[NetworkSessionController] Dedicated leaderboard file: {GetDedicatedLeaderboardPath()}");
             LoadDedicatedLeaderboardRecords();
             NetworkManager.ServerManager.OnRemoteConnectionState += OnRemoteConnectionState;
+
+            // Leaderboard-only clients (the main-menu "live query") send this; they must never be
+            // treated as racers, so requireAuthentication:false keeps the handshake light and the
+            // reply is sent straight back to the asking connection.
+            NetworkManager.ServerManager.RegisterBroadcast<LeaderboardQueryBroadcast>(OnLeaderboardQueryBroadcast, requireAuthentication: false);
+
+            // PlayerSpawner auto-spawns a player for every connection; intercept and despawn the
+            // player belonging to a leaderboard-only connection so it can't join the lobby.
+            _playerSpawner = NetworkManager.gameObject.GetComponent<FishNet.Component.Spawning.PlayerSpawner>()
+                             ?? NetworkManager.gameObject.GetComponentInChildren<FishNet.Component.Spawning.PlayerSpawner>(true);
+            if (_playerSpawner != null)
+                _playerSpawner.OnSpawned += OnPlayerSpawnerSpawned;
         }
 
         public override void OnStopServer()
         {
             if (NetworkManager != null && NetworkManager.ServerManager != null)
+            {
                 NetworkManager.ServerManager.OnRemoteConnectionState -= OnRemoteConnectionState;
+                NetworkManager.ServerManager.UnregisterBroadcast<LeaderboardQueryBroadcast>(OnLeaderboardQueryBroadcast);
+            }
 
+            if (_playerSpawner != null)
+                _playerSpawner.OnSpawned -= OnPlayerSpawnerSpawned;
+            _playerSpawner = null;
+
+            _leaderboardOnlyConnections.Clear();
             _players.Clear();
             base.OnStopServer();
         }
@@ -286,6 +312,50 @@ namespace Features.Networking
             if (!IsServerInitialized) return;
         }
 
+        private NetworkLeaderboardRecord[] GetDedicatedLeaderboardRecordsArray(int count)
+        {
+            return LeaderboardRecordMapper.TakeTop(DedicatedLeaderboardRecords, count);
+        }
+
+        // Main-menu "live query": a leaderboard-only client asks for the top records. We flag the
+        // connection so it is excluded from lobby/race logic, despawn any player PlayerSpawner has
+        // already created for it, and reply straight back to that connection.
+        private void OnLeaderboardQueryBroadcast(NetworkConnection conn, LeaderboardQueryBroadcast msg, Channel channel)
+        {
+            if (!IsServerInitialized || conn == null) return;
+
+            _leaderboardOnlyConnections.Add(conn);
+            DespawnConnectionPlayers(conn);
+            ConnectedPlayers.Value = _players.Count;
+
+            int count = Mathf.Clamp(msg.Count, 0, 100);
+            NetworkManager.ServerManager.Broadcast(conn, new LeaderboardResultBroadcast
+            {
+                Records = GetDedicatedLeaderboardRecordsArray(count)
+            }, requireAuthenticated: false);
+        }
+
+        private void OnPlayerSpawnerSpawned(NetworkObject nob)
+        {
+            if (nob == null) return;
+            if (nob.Owner == null || !_leaderboardOnlyConnections.Contains(nob.Owner)) return;
+
+            // A leaderboard-only connection just had a player auto-spawned; remove it immediately.
+            NetworkManager.ServerManager.Despawn(nob);
+        }
+
+        private void DespawnConnectionPlayers(NetworkConnection conn)
+        {
+            if (conn == null) return;
+
+            // Copy first: despawning mutates conn.Objects.
+            foreach (NetworkObject nob in conn.Objects.ToArray())
+            {
+                if (nob != null && nob.GetComponent<NetworkPlayerData>() != null)
+                    NetworkManager.ServerManager.Despawn(nob);
+            }
+        }
+
         private void ServerStartCountdown(bool forceStart)
         {
             if (!IsServerInitialized) return;
@@ -378,10 +448,15 @@ namespace Features.Networking
 
         private void OnRemoteConnectionState(NetworkConnection connection, RemoteConnectionStateArgs args)
         {
-            ConnectedPlayers.Value = NetworkManager.ServerManager.Clients.Count;
-
             if (args.ConnectionState == RemoteConnectionState.Stopped)
+            {
+                _leaderboardOnlyConnections.Remove(connection);
                 RefreshReadyState();
+            }
+
+            // Count only spawned racers, never leaderboard-only query connections. (RegisterPlayer/
+            // RefreshReadyState already compute ConnectedPlayers from _players.Count elsewhere.)
+            ConnectedPlayers.Value = _players.Count;
         }
 
         public void ServerRefreshPlayerSnapshot(NetworkPlayerData player)
