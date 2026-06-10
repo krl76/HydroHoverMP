@@ -513,6 +513,8 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _ownerOnlyBehaviours: []
   _disableChildCamerasForRemote: 1
+  _remoteMaxAir: 2.5
+  _remoteMaxSink: -0.5
 --- !u!114 &1769908396771844597
 MonoBehaviour:
   m_ObjectHideFlags: 0
