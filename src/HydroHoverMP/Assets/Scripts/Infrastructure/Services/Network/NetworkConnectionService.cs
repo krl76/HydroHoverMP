@@ -28,6 +28,8 @@ namespace Infrastructure.Services.Network
         private bool _stopRequested;
         private bool _clientStartRequested;
         private bool _gameplayGlobalSceneLoaded;
+        private bool _leaderboardQueryActive;
+        private int _pendingLeaderboardQueryCount;
         private NetworkConnectionStatus _status = NetworkConnectionStatus.Offline;
 
         public NetworkConnectionStatus Status => _status;
@@ -42,6 +44,7 @@ namespace Infrastructure.Services.Network
         public event Action<NetworkConnectionStatus> OnStatusChanged;
         public event Action<int> OnClientCountChanged;
         public event Action<string> OnConnectionFailed;
+        public event Action<System.Collections.Generic.IReadOnlyList<Data.Leaderbords.Record>> OnLeaderboardRecordsReceived;
 
         public NetworkConnectionService(DedicatedServerConfiguration dedicatedServerConfiguration = null, GameStateMachine stateMachine = null)
         {
@@ -159,8 +162,76 @@ namespace Infrastructure.Services.Network
             RefreshStatus();
         }
 
+        public bool BeginLeaderboardQuery(int count)
+        {
+            if (_leaderboardQueryActive) return false;
+            if (!EnsureNetworkManager()) return false;
+
+            RefreshStatus();
+            if (_status is not (NetworkConnectionStatus.Offline or NetworkConnectionStatus.Failed))
+                return false; // Busy hosting/connecting/already in a session.
+
+            _leaderboardQueryActive = true;
+            _pendingLeaderboardQueryCount = count;
+            _stopRequested = false;
+            _clientStartRequested = false;
+
+            _networkManager.ClientManager.RegisterBroadcast<Features.Networking.LeaderboardResultBroadcast>(OnLeaderboardResultBroadcast);
+
+            string address = _dedicatedServerConfiguration.NormalizedAddress;
+            ushort port = _dedicatedServerConfiguration.NormalizedPort;
+            if (!_networkManager.ClientManager.StartConnection(address, port))
+            {
+                _networkManager.ClientManager.UnregisterBroadcast<Features.Networking.LeaderboardResultBroadcast>(OnLeaderboardResultBroadcast);
+                _leaderboardQueryActive = false;
+                return false;
+            }
+
+            return true;
+        }
+
+        // Called by the UI when the leaderboard window closes or times out. This is the ONLY place
+        // the query connection is stopped — never from inside the broadcast handler (re-entrancy).
+        public void CancelLeaderboardQuery()
+        {
+            if (!_leaderboardQueryActive) return;
+
+            _leaderboardQueryActive = false;
+            if (_networkManager != null)
+            {
+                _networkManager.ClientManager.UnregisterBroadcast<Features.Networking.LeaderboardResultBroadcast>(OnLeaderboardResultBroadcast);
+
+                // Tear the connection down even when it is still mid-handshake. IsClientStarted is
+                // false until Started+auth, so guarding on it would leave a connecting socket alive;
+                // it would then reach Started outside the query branch and be promoted to a phantom
+                // ClientStarted session that blocks real Host/Client starts. StopConnection is a safe
+                // no-op when nothing is connecting (we only get here while a query was active).
+                _stopRequested = true;
+                _networkManager.ClientManager.StopConnection();
+            }
+
+            SetStatus(NetworkConnectionStatus.Offline);
+        }
+
+        // Stays connected after delivering results so the window can keep showing live data; the
+        // connection is torn down later by CancelLeaderboardQuery. We never StopConnection here
+        // because this runs inside FishNet's client read loop.
+        private void OnLeaderboardResultBroadcast(Features.Networking.LeaderboardResultBroadcast msg, Channel channel)
+        {
+            System.Collections.Generic.IReadOnlyList<Data.Leaderbords.Record> records =
+                Features.Networking.LeaderboardRecordMapper.ToRecords(msg.Records);
+            OnLeaderboardRecordsReceived?.Invoke(records);
+        }
+
         public void RefreshStatus()
         {
+            if (_leaderboardQueryActive)
+            {
+                // A leaderboard-only query connection must stay invisible to the menu status UI.
+                SetStatus(NetworkConnectionStatus.Offline);
+                return;
+            }
+
             if (!TryBindNetworkManager())
             {
                 SetStatus(NetworkConnectionStatus.Offline);
@@ -435,6 +506,31 @@ namespace Infrastructure.Services.Network
 
         private void OnClientConnectionState(ClientConnectionStateArgs args)
         {
+            if (_leaderboardQueryActive)
+            {
+                if (args.ConnectionState == LocalConnectionState.Started)
+                {
+                    // Connected as a leaderboard-only client: ask for records, stay invisible to the
+                    // menu status UI (do not flip status to ClientStarted).
+                    _networkManager.ClientManager.Broadcast(new Features.Networking.LeaderboardQueryBroadcast
+                    {
+                        Count = _pendingLeaderboardQueryCount
+                    });
+                }
+                else if (args.ConnectionState == LocalConnectionState.Stopped)
+                {
+                    // Server dropped us before replying: leave query mode and surface an empty
+                    // result so the window can exit its loading state.
+                    _leaderboardQueryActive = false;
+                    if (_networkManager != null)
+                        _networkManager.ClientManager.UnregisterBroadcast<Features.Networking.LeaderboardResultBroadcast>(OnLeaderboardResultBroadcast);
+                    SetStatus(NetworkConnectionStatus.Offline);
+                    OnLeaderboardRecordsReceived?.Invoke(new System.Collections.Generic.List<Data.Leaderbords.Record>());
+                }
+
+                return;
+            }
+
             if (args.ConnectionState == LocalConnectionState.Started)
             {
                 _clientStartRequested = false;

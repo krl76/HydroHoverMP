@@ -20,5 +20,17 @@ namespace Infrastructure.Services.Network
         ushort ResolveServerPort();
         void StopConnection();
         void RefreshStatus();
+
+        // Raised on the client when a leaderboard-only query returns records (may be empty).
+        event Action<System.Collections.Generic.IReadOnlyList<Data.Leaderbords.Record>> OnLeaderboardRecordsReceived;
+
+        // Starts a short-lived "leaderboard-only" connection to the configured dedicated server,
+        // requests the top `count` records, and stays connected until CancelLeaderboardQuery.
+        // Returns false if a connection/query is already active. Result arrives via
+        // OnLeaderboardRecordsReceived.
+        bool BeginLeaderboardQuery(int count);
+
+        // Aborts an in-flight leaderboard query (e.g. the window closed or timed out).
+        void CancelLeaderboardQuery();
     }
 }
