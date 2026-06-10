@@ -39,8 +39,13 @@ namespace UI.Settings
 
         private List<RebindButton> _spawnedButtons = new List<RebindButton>();
         
-        private SettingsData _backupData; 
+        private SettingsData _backupData;
         private bool _isDirty = false;
+
+        // Window to re-open when Settings closes. Set by whoever opened Settings (Pause or
+        // MainMenu) instead of guessing from Time.timeScale, which is only 0 in single-player
+        // pause and therefore mis-routed Settings-from-Pause to MainMenu in multiplayer.
+        private WindowID _returnTarget = WindowID.MainMenu;
 
         [Inject]
         public void Construct(ISettingsService settingsService, IWindowService windowService, IInputService inputService)
@@ -50,11 +55,20 @@ namespace UI.Settings
             _inputService = inputService;
         }
 
+        public void SetReturnTarget(WindowID windowID)
+        {
+            _returnTarget = windowID;
+
+            // Keep the pause-only dim background in sync even if this is called after Start().
+            if (_pauseBackground != null)
+                _pauseBackground.SetActive(_returnTarget == WindowID.Pause);
+        }
+
         private void Start()
         {
             if (_pauseBackground != null)
             {
-                _pauseBackground.SetActive(Time.timeScale == 0);
+                _pauseBackground.SetActive(_returnTarget == WindowID.Pause);
             }
 
             CreateBackup();
@@ -98,6 +112,21 @@ namespace UI.Settings
 
             _applyButton.onClick.AddListener(ApplySettings);
             _closeButton.onClick.AddListener(CloseWindow);
+
+            // ESC (the Pause action) closes Settings and returns to the opener.
+            if (_inputService != null)
+                _inputService.OnPausePressed += OnCancelPressed;
+        }
+
+        private void OnDestroy()
+        {
+            if (_inputService != null)
+                _inputService.OnPausePressed -= OnCancelPressed;
+        }
+
+        private void OnCancelPressed()
+        {
+            CloseWindow();
         }
 
         private void OnSettingsChanged()
@@ -219,15 +248,8 @@ namespace UI.Settings
                 Debug.Log("Changes discarded.");
             }
             
-            if(Time.timeScale == 0) 
-            {
-                _windowService.Open(WindowID.Pause);
-            }
-            else 
-            {
-                _windowService.Open(WindowID.MainMenu);
-            }
-            
+            // Return to whoever opened Settings (Pause or MainMenu), set explicitly by the opener.
+            _windowService.Open(_returnTarget);
             _windowService.Close(WindowID.Settings);
         }
     }

@@ -6,6 +6,7 @@ using Features.Networking;
 using FishNet;
 using Infrastructure.Services.Network;
 using Infrastructure.Services.Window;
+using UI.Settings;
 using UnityEngine;
 using UnityEngine.UI;
 using Zenject;
@@ -53,10 +54,14 @@ namespace UI.Pause
             _windowService.Close(WindowID.Pause);
         }
 
-        private void OpenSettings()
+        private async void OpenSettings()
         {
             _windowService.Close(WindowID.Pause);
-            _windowService.Open(WindowID.Settings);
+
+            // Tell Settings to come back to Pause (not MainMenu) when it closes.
+            SettingsWindow settings = await _windowService.OpenAndGet<SettingsWindow>(WindowID.Settings);
+            if (settings != null)
+                settings.SetReturnTarget(WindowID.Pause);
         }
 
         private void GoToMenu()

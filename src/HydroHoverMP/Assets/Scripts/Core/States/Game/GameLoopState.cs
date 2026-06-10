@@ -30,8 +30,9 @@ namespace Core.States.Game
         
         private void OnPausePressed()
         {
-            if (_windowService.IsWindowOpened(WindowID.Pause) || 
-                _windowService.IsWindowOpened(WindowID.Finish)) 
+            if (_windowService.IsWindowOpened(WindowID.Pause) ||
+                _windowService.IsWindowOpened(WindowID.Finish) ||
+                _windowService.IsWindowOpened(WindowID.Settings))
                 return;
 
             _windowService.Open(WindowID.Pause);
@@ -52,10 +53,17 @@ namespace Core.States.Game
             _inputService.OnPausePressed -= OnPausePressed;
             
             _windowService.Close(WindowID.HUD);
-            
+
             if (_windowService.IsWindowOpened(WindowID.Pause))
             {
                 _windowService.Close(WindowID.Pause);
+            }
+
+            // The post-race screen may be open when leaving gameplay (e.g. host dropped the
+            // session); close it so it does not linger over the main menu.
+            if (_windowService.IsWindowOpened(WindowID.Finish))
+            {
+                _windowService.Close(WindowID.Finish);
             }
         }
     }
