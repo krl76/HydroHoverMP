@@ -1,5 +1,7 @@
 # Dedicated Leaderboard Menu Query Implementation Plan
 
+> **⚠️ SUPERSEDED (2026-06-11):** This query-connection approach was implemented, then reverted. Connecting from the menu pulls FishNet's connect-time machinery onto the menu client (auto-spawned player + the server's **global Gameplay scene** pushed at auth). The menu leaderboard is now served from a **client-side cache** in `LeaderboardService` instead (see commit `879b76a` and memory `leaderboard-menu-uses-client-cache`). Kept for historical context only — do not implement.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the main-menu Leaderboard window show the dedicated server's live, authoritative records by performing a short-lived "leaderboard-only" query connection that fetches records over a FishNet Broadcast — without the querying client becoming a spawned, ready lobby participant.
