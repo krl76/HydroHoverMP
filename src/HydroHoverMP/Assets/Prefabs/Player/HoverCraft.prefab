@@ -132,12 +132,12 @@ GameObject:
   - component: {fileID: 7612289689920024822}
   - component: {fileID: 8228103636671267356}
   - component: {fileID: 3471023219187425857}
-  - component: {fileID: 412903677998262870}
   - component: {fileID: 8153756683598732367}
   - component: {fileID: 313867022365787619}
   - component: {fileID: 1769908396771844597}
   - component: {fileID: 7365051112825194063}
   - component: {fileID: 7021086196128313474}
+  - component: {fileID: 4505455200674274587}
   m_Layer: 0
   m_Name: HoverCraft
   m_TagString: Player
@@ -410,10 +410,10 @@ MonoBehaviour:
   _useLevelOfDetail: 0
   _useRootLevelOfDetail: 1
   NetworkObserver: {fileID: 0}
-  _enablePrediction: 0
-  _predictionType: 0
+  _enablePrediction: 1
+  _predictionType: 1
   _localReconcileCorrectionType: 2
-  _graphicalObject: {fileID: 0}
+  _graphicalObject: {fileID: 4513580553224342063}
   _detachGraphicalObject: 0
   _enableStateForwarding: 1
   _networkTransform: {fileID: 0}
@@ -433,52 +433,6 @@ MonoBehaviour:
     Rotation: {x: 0, y: 0, z: 0, w: 0}
     Scale: {x: 0, y: 0, z: 0}
     IsValid: 0
---- !u!114 &412903677998262870
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 372718540943529084}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a2836e36774ca1c4bbbee976e17b649c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Transforming.NetworkTransform
-  _componentIndexCache: 255
-  _addedNetworkObject: {fileID: 3471023219187425857}
-  _networkObjectCache: {fileID: 0}
-  _componentConfiguration: 0
-  _synchronizeParent: 0
-  _packing:
-    Position: 1
-    Rotation: 1
-    Scale: 0
-  _useScaledTime: 1
-  _interpolation: 2
-  _extrapolation: 0
-  _enableTeleport: 0
-  _teleportThreshold: 1
-  _clientAuthoritative: 1
-  _sendToOwner: 1
-  _interval: 1
-  _synchronizePosition: 1
-  _positionSensitivity: 0.001
-  _positionSnapping:
-    X: 0
-    Y: 0
-    Z: 0
-  _synchronizeRotation: 1
-  _rotationSnapping:
-    X: 0
-    Y: 0
-    Z: 0
-  _synchronizeScale: 1
-  _scaleSensitivity: 0.001
-  _scaleSnapping:
-    X: 0
-    Y: 0
-    Z: 0
 --- !u!114 &8153756683598732367
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -513,6 +467,13 @@ MonoBehaviour:
   _rigidbody: {fileID: 0}
   _ownerOnlyBehaviours: []
   _disableChildCamerasForRemote: 1
+  _remoteOffsetSharpness: 2
+  _remoteHeightSharpness: 5
+  _remoteTiltSharpness: 5
+  _remoteTiltStrength: 0.5
+  _remoteMaxTiltDegrees: 10
+  _remoteSampleDistance: 2.5
+  _remoteHeightBias: 0.25
 --- !u!114 &1769908396771844597
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -570,6 +531,22 @@ MonoBehaviour:
   _networkObjectCache: {fileID: 0}
   _respawnCooldown: 1
   _uprightLift: 0.5
+--- !u!114 &4505455200674274587
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 372718540943529084}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af8e7bd0d0645594ea76bb9b293fd6f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Features.Networking.PredictedHoverMotor
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 3471023219187425857}
+  _networkObjectCache: {fileID: 0}
+  _tickCallbacks: 6
 --- !u!1 &1043666725274324933
 GameObject:
   m_ObjectHideFlags: 0

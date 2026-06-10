@@ -28,6 +28,16 @@ namespace Physics.Hover
         
         public float SteerInput { get; set; }
 
+        // Exposed so the networked PredictedHoverMotor can reuse the same tuning when it runs
+        // drag/steering inside the prediction tick instead of FixedUpdate.
+        public float AirDensity => _airDensity;
+        public float FrontalArea => _frontalArea;
+        public float DragCoefficient => _dragCoefficient;
+        public float WaterDensity => _waterDensity;
+        public float WaterDragCoeff => _waterDragCoeff;
+        public float RudderTorque => _rudderTorque;
+        public float SideDrag => _sideDrag;
+
         [Inject]
         public void Construct(WindSystem wind, WaterPhysicsSystem water)
         {

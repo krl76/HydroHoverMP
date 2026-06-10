@@ -36,6 +36,12 @@ public class HoverEngine : MonoBehaviour
     {
         _targetThrottle = Mathf.Clamp(input, -1f, 1f);
     }
+
+    // Restores RPM during a prediction reconcile so the replayed ticks recompute identical torque.
+    public void SetRpmState(float rpm)
+    {
+        CurrentRPM = rpm;
+    }
     
     public void CalculatePhysics(float dt)
     {

@@ -21,7 +21,13 @@ public class HoverCushion : MonoBehaviour
     
     public Transform CenterOfMass => _centerOfMass;
     public Transform[] HoverPoints => _hoverPoints;
-    
+
+    // Exposed so the networked PredictedHoverMotor can reuse the same tuning (single source of
+    // truth) when it runs the buoyancy inside the prediction tick instead of FixedUpdate.
+    public float HoverHeight => _hoverHeight;
+    public float SpringForce => _springForce;
+    public float DamperForce => _damperForce;
+
     public float LiftEfficiency { get; set; } = 1.0f;
     public event Action<float> OnWaterImpact;
     
@@ -82,9 +88,12 @@ public class HoverCushion : MonoBehaviour
         
         if (heightDiff < _hoverHeight)
         {
-            // Сжатие пружины
-            float compression = (_hoverHeight - heightDiff) / _hoverHeight;
-            
+            // Сжатие пружины. Ограничиваем [0..1]: без клампа полностью погружённая точка
+            // (heightDiff << 0, например на гребне волны или после удара) давала бы сжатие 3-4x
+            // и катапультировала лодку в воздух — это и есть источник «взлётов». При prediction
+            // это ещё и обязательное условие детерминизма силы на каждом тике.
+            float compression = Mathf.Clamp01((_hoverHeight - heightDiff) / _hoverHeight);
+
             // F_spring = K * x
             float springForce = _springForce * compression * LiftEfficiency;
 

@@ -1,9 +1,12 @@
 using System;
 using System.Net;
+using Core.States.Base;
+using Core.States.MainMenu;
 using Data;
 using FishNet;
 using FishNet.Managing;
 using FishNet.Managing.Scened;
+using FishNet.Managing.Timing;
 using FishNet.Transporting;
 using UnityEngine;
 using Zenject;
@@ -21,6 +24,7 @@ namespace Infrastructure.Services.Network
 
         private NetworkManager _networkManager;
         private readonly DedicatedServerConfiguration _dedicatedServerConfiguration;
+        private readonly GameStateMachine _stateMachine;
         private bool _subscribed;
         private bool _stopRequested;
         private bool _clientStartRequested;
@@ -40,9 +44,10 @@ namespace Infrastructure.Services.Network
         public event Action<int> OnClientCountChanged;
         public event Action<string> OnConnectionFailed;
 
-        public NetworkConnectionService(DedicatedServerConfiguration dedicatedServerConfiguration = null)
+        public NetworkConnectionService(DedicatedServerConfiguration dedicatedServerConfiguration = null, GameStateMachine stateMachine = null)
         {
             _dedicatedServerConfiguration = dedicatedServerConfiguration ?? new DedicatedServerConfiguration();
+            _stateMachine = stateMachine;
         }
 
         public void Initialize()
@@ -62,6 +67,7 @@ namespace Infrastructure.Services.Network
             if (IsAlreadyStarted(NetworkConnectionStatus.HostStarted)) return true;
             if (!CanStartConnection("host")) return false;
 
+            ApplyPredictionPhysicsMode(true);
             _stopRequested = false;
             _clientStartRequested = true;
             SetStatus(NetworkConnectionStatus.StartingHost);
@@ -94,6 +100,7 @@ namespace Infrastructure.Services.Network
             if (!CanStartConnection("client")) return false;
             if (!TryNormalizeAddress(address, out string normalizedAddress)) return false;
 
+            ApplyPredictionPhysicsMode(true);
             _stopRequested = false;
             _clientStartRequested = true;
             SetStatus(NetworkConnectionStatus.StartingClient);
@@ -114,6 +121,7 @@ namespace Infrastructure.Services.Network
             if (IsAlreadyStarted(NetworkConnectionStatus.ServerStarted)) return true;
             if (!CanStartConnection("server")) return false;
 
+            ApplyPredictionPhysicsMode(true);
             _stopRequested = false;
             SetStatus(NetworkConnectionStatus.StartingServer);
             bool started = _networkManager.ServerManager.StartConnection(port);
@@ -152,6 +160,7 @@ namespace Infrastructure.Services.Network
             if (_networkManager.IsServerStarted)
                 _networkManager.ServerManager.StopConnection(true);
 
+            ApplyPredictionPhysicsMode(false);
             RefreshStatus();
         }
 
@@ -445,8 +454,13 @@ namespace Infrastructure.Services.Network
                     return;
                 }
 
+                // A stop we did not request means the server/host dropped us mid-session.
+                bool unexpected = !_stopRequested;
                 _clientStartRequested = false;
                 RefreshStatus();
+
+                if (unexpected)
+                    HandleUnexpectedClientDisconnect();
             }
             else if (args.ConnectionState == LocalConnectionState.Starting)
                 SetStatus(NetworkConnectionStatus.StartingClient);
@@ -495,6 +509,33 @@ namespace Infrastructure.Services.Network
             int clientCount = ConnectedClientCount;
             Debug.Log($"[NetworkConnectionService] Client {connection.ClientId} {args.ConnectionState}. Connected clients: {clientCount}.");
             OnClientCountChanged?.Invoke(clientCount);
+        }
+
+        // The server/host vanished without this client asking to leave (host returned to the
+        // menu, crashed, or timed out). Send the player back to the main menu gracefully instead
+        // of stranding them in an orphaned gameplay scene.
+        private void HandleUnexpectedClientDisconnect()
+        {
+            if (ServerEnvironment.IsDedicatedServer) return;
+            if (_stateMachine == null) return;
+            // A host is also a server; if our own server is still up this is not a host-left event.
+            if (_networkManager != null && _networkManager.IsServerStarted) return;
+
+            Debug.Log("[NetworkConnectionService] Connection closed by the host. Returning to the main menu.");
+            OnConnectionFailed?.Invoke("Host closed the session. Returning to the main menu.");
+            _stateMachine.Enter<MainMenuState>();
+        }
+
+        // Client-side prediction of Rigidbodies requires FishNet to own physics stepping
+        // (PhysicsMode.TimeManager); the default PhysicsMode.Unity makes reconcile unable to
+        // re-simulate, so predicted boats would not move/correct on remotes. We only switch while a
+        // session is active and restore PhysicsMode.Unity on stop so the menu/offline physics (which
+        // rely on Unity's own auto-simulation) are unaffected.
+        private void ApplyPredictionPhysicsMode(bool prediction)
+        {
+            if (_networkManager == null || _networkManager.TimeManager == null) return;
+
+            _networkManager.TimeManager.SetPhysicsMode(prediction ? PhysicsMode.TimeManager : PhysicsMode.Unity);
         }
 
         private void SetStatus(NetworkConnectionStatus next)

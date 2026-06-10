@@ -28,6 +28,13 @@ namespace Physics.Hover
         public Rigidbody Rb => _rb;
         public bool InputEnabled { get; private set; } = true;
 
+        // Exposed so the networked PredictedHoverMotor can reuse the same tuning when it drives
+        // thrust/brake inside the prediction tick instead of FixedUpdate.
+        public Transform ThrustPoint => _thrustPoint;
+        public float ForwardForceMultiplier => _forwardForceMultiplier;
+        public float BrakeForce => _brakeForce;
+        public HoverAerodynamics Aerodynamics => _aerodynamics;
+
         private Rigidbody _rb;
         private IInputService _input;
 

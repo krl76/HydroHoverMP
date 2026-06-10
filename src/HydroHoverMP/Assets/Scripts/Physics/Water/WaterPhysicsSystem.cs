@@ -61,21 +61,29 @@ namespace Physics.Water
             Shader.SetGlobalVector(Wave2Dir, _settings.Direction2.normalized);
         }
     
+        // Render-time sampling (visuals, single-player buoyancy): uses the per-frame cached clock.
         public float GetWaterHeightAt(Vector3 worldPos)
+        {
+            return GetWaterHeightAt(worldPos, _waveTime);
+        }
+
+        // Deterministic sampling for client-side prediction: the caller passes the wave time
+        // derived from the SIMULATED tick (TimeManager.TicksToTime(tick)), so a reconcile replay
+        // of tick N always samples the exact same surface the owner originally simulated. Sampling
+        // the per-frame _waveTime here instead would diverge on every replay and shake the boat.
+        public float GetWaterHeightAt(Vector3 worldPos, float waveTime)
         {
             float baseHeight = transform.position.y;
             if (_settings == null)
                 return baseHeight;
 
-            float time = _waveTime;
-
             float finalAmp1 = _settings.Amplitude1 * _amplitudeMultiplier;
             float finalAmp2 = _settings.Amplitude2 * _amplitudeMultiplier;
-        
+
             float y = baseHeight;
-            y += CalculateGerstnerWave(worldPos, _settings.Wavelength1, finalAmp1, _settings.Speed1, _settings.Direction1, time);
-            y += CalculateGerstnerWave(worldPos, _settings.Wavelength2, finalAmp2, _settings.Speed2, _settings.Direction2, time);
-        
+            y += CalculateGerstnerWave(worldPos, _settings.Wavelength1, finalAmp1, _settings.Speed1, _settings.Direction1, waveTime);
+            y += CalculateGerstnerWave(worldPos, _settings.Wavelength2, finalAmp2, _settings.Speed2, _settings.Direction2, waveTime);
+
             return y;
         }
 
