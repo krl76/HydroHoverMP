@@ -160,6 +160,12 @@ namespace Features.Networking
         [Replicate]
         private void PerformReplicate(MoveData data, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
         {
+            // The water/wind systems live in the additively-loaded level; if they were not present
+            // when OnStartNetwork ran, keep trying so buoyancy is never silently skipped (= the boat
+            // sinking because only gravity is applied).
+            if (_water == null || _wind == null)
+                ResolveSceneServicesIfNeeded();
+
             float dt = (float)TimeManager.TickDelta;
             // Deterministic wave clock for THIS tick — identical on owner and server, and identical
             // on every reconcile replay of the same tick.
