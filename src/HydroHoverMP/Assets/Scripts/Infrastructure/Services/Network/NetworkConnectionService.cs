@@ -6,7 +6,6 @@ using Data;
 using FishNet;
 using FishNet.Managing;
 using FishNet.Managing.Scened;
-using FishNet.Managing.Timing;
 using FishNet.Transporting;
 using UnityEngine;
 using Zenject;
@@ -67,7 +66,6 @@ namespace Infrastructure.Services.Network
             if (IsAlreadyStarted(NetworkConnectionStatus.HostStarted)) return true;
             if (!CanStartConnection("host")) return false;
 
-            ApplyPredictionPhysicsMode(true);
             _stopRequested = false;
             _clientStartRequested = true;
             SetStatus(NetworkConnectionStatus.StartingHost);
@@ -100,7 +98,6 @@ namespace Infrastructure.Services.Network
             if (!CanStartConnection("client")) return false;
             if (!TryNormalizeAddress(address, out string normalizedAddress)) return false;
 
-            ApplyPredictionPhysicsMode(true);
             _stopRequested = false;
             _clientStartRequested = true;
             SetStatus(NetworkConnectionStatus.StartingClient);
@@ -121,7 +118,6 @@ namespace Infrastructure.Services.Network
             if (IsAlreadyStarted(NetworkConnectionStatus.ServerStarted)) return true;
             if (!CanStartConnection("server")) return false;
 
-            ApplyPredictionPhysicsMode(true);
             _stopRequested = false;
             SetStatus(NetworkConnectionStatus.StartingServer);
             bool started = _networkManager.ServerManager.StartConnection(port);
@@ -160,7 +156,6 @@ namespace Infrastructure.Services.Network
             if (_networkManager.IsServerStarted)
                 _networkManager.ServerManager.StopConnection(true);
 
-            ApplyPredictionPhysicsMode(false);
             RefreshStatus();
         }
 
@@ -524,18 +519,6 @@ namespace Infrastructure.Services.Network
             Debug.Log("[NetworkConnectionService] Connection closed by the host. Returning to the main menu.");
             OnConnectionFailed?.Invoke("Host closed the session. Returning to the main menu.");
             _stateMachine.Enter<MainMenuState>();
-        }
-
-        // Client-side prediction of Rigidbodies requires FishNet to own physics stepping
-        // (PhysicsMode.TimeManager); the default PhysicsMode.Unity makes reconcile unable to
-        // re-simulate, so predicted boats would not move/correct on remotes. We only switch while a
-        // session is active and restore PhysicsMode.Unity on stop so the menu/offline physics (which
-        // rely on Unity's own auto-simulation) are unaffected.
-        private void ApplyPredictionPhysicsMode(bool prediction)
-        {
-            if (_networkManager == null || _networkManager.TimeManager == null) return;
-
-            _networkManager.TimeManager.SetPhysicsMode(prediction ? PhysicsMode.TimeManager : PhysicsMode.Unity);
         }
 
         private void SetStatus(NetworkConnectionStatus next)
