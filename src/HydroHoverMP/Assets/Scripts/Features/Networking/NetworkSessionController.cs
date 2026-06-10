@@ -284,12 +284,21 @@ namespace Features.Networking
 
         public void ServerAddDedicatedLeaderboardRecord(float time, string nickname)
         {
-            if (!IsServerInitialized) return;
-            if (time <= 0f) return;
+            if (!IsServerInitialized)
+            {
+                Debug.LogWarning($"[Leaderboard] Ignored record add (server not initialized): time={time:F3}, nickname='{nickname}'.");
+                return;
+            }
+            if (time <= 0f)
+            {
+                Debug.LogWarning($"[Leaderboard] Ignored record add (non-positive time {time:F3}) for nickname='{nickname}'.");
+                return;
+            }
 
             string safeNickname = string.IsNullOrWhiteSpace(nickname) ? "Pilot" : nickname.Trim();
             DedicatedLeaderboardRecords.Add(new NetworkLeaderboardRecord(time, System.DateTime.Now.Ticks, safeNickname));
             SortDedicatedLeaderboardRecords();
+            Debug.Log($"[Leaderboard] Added record: nickname='{safeNickname}', time={time:F3}s. Total records: {DedicatedLeaderboardRecords.Count}.");
             SaveDedicatedLeaderboardRecords();
         }
 
@@ -329,9 +338,11 @@ namespace Features.Networking
             ConnectedPlayers.Value = _players.Count;
 
             int count = Mathf.Clamp(msg.Count, 0, 100);
+            NetworkLeaderboardRecord[] records = GetDedicatedLeaderboardRecordsArray(count);
+            Debug.Log($"[Leaderboard] Query from conn {conn.ClientId}: requested {msg.Count} (clamped {count}), replying with {records.Length} of {DedicatedLeaderboardRecords.Count} stored. ConnectedPlayers(racers)={ConnectedPlayers.Value}.");
             NetworkManager.ServerManager.Broadcast(conn, new LeaderboardResultBroadcast
             {
-                Records = GetDedicatedLeaderboardRecordsArray(count)
+                Records = records
             }, requireAuthenticated: false);
         }
 
@@ -604,10 +615,11 @@ namespace Features.Networking
 
                 string json = JsonConvert.SerializeObject(data, Formatting.Indented);
                 File.WriteAllText(path, json);
+                Debug.Log($"[Leaderboard] Saved {data.Records.Count} record(s) to '{path}'.");
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[NetworkSessionController] Failed to save dedicated leaderboard to '{path}': {e}");
+                Debug.LogError($"[Leaderboard] Failed to save dedicated leaderboard to '{path}': {e}");
             }
         }
 
