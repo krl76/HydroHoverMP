@@ -81,3 +81,4 @@ crashlytics-build.properties
 /.omo
 /presentation
 src/HydroHoverMP/docs/PROJECT_OVERVIEW.md
+/src/HydroHoverMP/.omo
