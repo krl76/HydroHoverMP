@@ -78,3 +78,6 @@ crashlytics-build.properties
 .sisyphus/
 /src/HydroHoverMP_clone_0
 /src/HydroHoverMP/ServerBuild
+/.omo
+/presentation
+src/HydroHoverMP/docs/PROJECT_OVERVIEW.md
