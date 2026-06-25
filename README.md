@@ -8,7 +8,7 @@ Unity 6000.3.9f1 · FishNet 4.7.2 · Zenject · URP · C#
 ---
 
 <p align="center">
-  <img src="presentation/Screenshot_4.png" width="80%" alt="Общий план уровня" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
+  <img src="images/Screenshot_4.png" width="80%" alt="Общий план уровня" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
   <br/><em>Общий план игрового уровня — водная трасса с препятствиями</em>
 </p>
 
@@ -171,7 +171,7 @@ BootstrapState → IsDedicatedServer?
 Хост = сервер (`ServerManager.StartConnection`) + локальный клиент (`ClientManager.StartConnection`). При сбое клиента сервер откатывается — атомарность подключения.
 
 <p align="center">
-  <img src="presentation/Screenshot_5.png" width="80%" alt="Два клиента в одной сессии" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
+  <img src="images/Screenshot_5.png" width="80%" alt="Два клиента в одной сессии" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
   <br/><em>Два клиента в одной игровой сессии</em>
 </p>
 
@@ -241,7 +241,7 @@ position.y = Mathf.Clamp(position.y, waterHeight - 0.6f, waterHeight + 2.5f);
 Не даёт «улететь» или «утонуть» при сетевых задержках.
 
 <p align="center">
-  <img src="presentation/Screenshot_1.png" width="80%" alt="Движение волн Герстнера" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
+  <img src="images/Screenshot_1.png" width="80%" alt="Движение волн Герстнера" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
   <br/><em>Синхронизированная волновая поверхность — эффект Герстнера</em>
 </p>
 
@@ -385,11 +385,11 @@ Assets/Scripts/
 
 | Скриншот | Описание |
 |---|---|
-| ![Общий план уровня](presentation/Screenshot_4.png) | **Общий план уровня** — водная трасса с препятствиями |
-| ![Волны Герстнера](presentation/Screenshot_1.png) | **Процедурные волны Герстнера** — основа физики подушки |
-| ![HUD](presentation/Screenshot_2.png) | **HUD гонки** — таймер, скорость, FPS, чекпойнты, список игроков |
-| ![Меню](presentation/Screenshot_3.png) | **Главное меню, настройки, таблица лидеров** |
-| ![Два клиента](presentation/Screenshot_5.png) | **Два клиента в одной сессии** — мультиплеерная работа |
+| ![Общий план уровня](images/Screenshot_4.png) | **Общий план уровня** — водная трасса с препятствиями |
+| ![Волны Герстнера](images/Screenshot_1.png) | **Процедурные волны Герстнера** — основа физики подушки |
+| ![HUD](images/Screenshot_2.png) | **HUD гонки** — таймер, скорость, FPS, чекпойнты, список игроков |
+| ![Меню](images/Screenshot_3.png) | **Главное меню, настройки, таблица лидеров** |
+| ![Два клиента](images/Screenshot_5.png) | **Два клиента в одной сессии** — мультиплеерная работа |
 
 ---
 
@@ -466,6 +466,6 @@ Build Settings → Dedicated Server (Linux) → Build
 ---
 
 <p align="center">
-  <img src="presentation/Screenshot_3.png" width="80%" alt="Главное меню и лидерборд" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
+  <img src="images/Screenshot_3.png" width="80%" alt="Главное меню и лидерборд" style="border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" />
   <br/><em>Главное меню, настройки и таблица лидеров</em>
 </p>
